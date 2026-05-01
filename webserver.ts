@@ -9,6 +9,10 @@
 namespace esp8266 {
     let webServerRunning = false
     let webServerIP = ""
+    const WEB_SERVER_PORT = 80
+    const WEB_SERVER_STATIC_IP = "192.168.1.88"
+    const WEB_SERVER_GATEWAY = "192.168.1.1"
+    const WEB_SERVER_NETMASK = "255.255.255.0"
 
     // Endpoint paths.
     let receivedFromWebAppPath = "/receivedFromWebApp"
@@ -25,15 +29,15 @@ namespace esp8266 {
 
     //% subcategory="Web Server"
     //% blockId=esp8266_start_web_server
-    //% block="Start Web Server with Port %port"
-    //% port.min=1 port.max=65535
-    export function startWebServer(port: number = 80) {
+    //% block="Start Web Server"
+    export function startWebServer() {
         webServerRunning = false
         if (!isWifiConnected()) return
 
+        sendCommand("AT+CIPSTA=\"" + WEB_SERVER_STATIC_IP + "\",\"" + WEB_SERVER_GATEWAY + "\",\"" + WEB_SERVER_NETMASK + "\"", "OK", 2000)
         sendCommand("AT+CIPSERVER=0", "OK", 1000)
         if (!sendCommand("AT+CIPMUX=1", "OK", 1000)) return
-        if (!sendCommand("AT+CIPSERVER=1," + port, "OK", 2000)) return
+        if (!sendCommand("AT+CIPSERVER=1," + WEB_SERVER_PORT, "OK", 2000)) return
 
         updateWebServerIP()
         serial.writeLine("IP Address: " + webServerIP)

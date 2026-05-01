@@ -87,6 +87,38 @@ if (esp8266.isBlynkUpdated()) {
 }
 ```
 
+## Web Server
+
+Start web server at port 80.
+
+```blocks
+esp8266.startWebServer(80)
+```
+
+Set customizable response text and status code.
+
+```blocks
+esp8266.setWebResponse("Hello from micro:bit", 200)
+```
+
+Handle incoming requests in a loop. Supports both `GET` and `POST`.
+
+```blocks
+forever(function () {
+    if (esp8266.handleWebRequest(100)) {
+        basic.showString(esp8266.lastWebRequestMethod())
+    }
+})
+```
+
+Read the last request details.
+
+```blocks
+let method = esp8266.lastWebRequestMethod()
+let path = esp8266.lastWebRequestPath()
+let body = esp8266.lastWebRequestBody()
+```
+
 ## Internet Time
 
 Initialize internet time to timezone +8.<br>
@@ -110,6 +142,17 @@ if (!(esp8266.isInternetTimeUpdated())) {
     basic.showString(esp8266.getHour() + ":" + esp8266.getMinute() + ":" + esp8266.getSecond())
 }
 ```
+
+## Use Case: Web App -> ESP8266 -> micro:bit
+
+This extension can run a lightweight HTTP server on ESP8266 to receive `GET` and `POST` from a web app.
+
+Typical use case:
+- Web dashboard sends command to local device
+- micro:bit reads method/path/body and triggers hardware action
+- ESP8266 returns customizable response text and HTTP status code
+
+Attribution: This extension is developed by **Cytron Technologies Sdn Bhd** and maintained by contributors in this repository.
 
 ## License
 

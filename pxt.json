@@ -1,6 +1,6 @@
 {
     "name": "pxt-esp8266",
-    "version": "2.0.1",
+    "version": "2.1.0",
     "description": "MakeCode Package for ESP8266 WiFi Module",
     "license": "MIT",
     "dependencies": {
@@ -12,7 +12,8 @@
         "blynk.ts",
         "sntp.ts",
         "telegram.ts",
-        "thingspeak.ts"
+        "thingspeak.ts",
+        "webserver.ts"
     ],
     "testFiles": [
         "test.ts"

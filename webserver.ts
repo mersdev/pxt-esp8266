@@ -34,9 +34,9 @@ namespace esp8266 {
         sendCommand("AT+CIPSERVER=0", "OK", 1000)
         if (!sendCommand("AT+CIPMUX=1", "OK", 1000)) return
         if (!sendCommand("AT+CIPSERVER=1," + port, "OK", 2000)) return
-        sendCommand("IP Address: " + webServerIP)
 
         updateWebServerIP()
+        serial.writeLine("IP Address: " + webServerIP)
         webServerRunning = true
     }
 
@@ -58,8 +58,15 @@ namespace esp8266 {
     //% block="Get IP Address"
     export function getIPAddress(): string {
         if (webServerIP == "") updateWebServerIP()
-        sendCommand("IP Address: " + webServerIP)
+        serial.writeLine("IP Address: " + webServerIP)
         return webServerIP
+    }
+
+    //% subcategory="Web Server"
+    //% blockId=esp8266_web_server_started
+    //% block="Web Server Started"
+    export function webServerStarted(): boolean {
+        return webServerRunning
     }
 
     //% subcategory="Web Server"

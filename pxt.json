@@ -13,8 +13,7 @@
         "sntp.ts",
         "telegram.ts",
         "thingspeak.ts",
-        "webserver.ts",
-        "main.py"
+        "webserver.ts"
     ],
     "testFiles": [
         "test.ts"

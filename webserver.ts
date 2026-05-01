@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Functions for HTTP GET web server.
+ * Functions for HTTP GET web server/client.
  *
  * Company: Cytron Technologies Sdn Bhd
  * Website: http://www.cytron.io
@@ -9,13 +9,18 @@
 namespace esp8266 {
     let webServerRunning = false
     let webRequestReceived = false
+    let inputSent = false
 
-    // Route settings.
-    let inputRoutePath = "/input"
+    // Inbound routes (web app -> micro:bit).
     let outputRoutePath = "/output"
     let healthRoutePath = "/health"
 
-    // Query key settings.
+    // Outbound route (micro:bit -> web app).
+    let inputRoutePath = "/input"
+    let webAppHost = ""
+    let webAppPort = 80
+
+    // Query keys.
     let inputSensorKey = "sensor"
     let inputValueKey = "value"
     let outputSensorKey = "sensor"
@@ -30,8 +35,7 @@ namespace esp8266 {
     let lastAction = ""
     let lastRouteType = ""
 
-    // Custom responses.
-    let inputResponse = "INPUT OK"
+    // Responses.
     let outputResponse = "OUTPUT OK"
     let healthResponse = "UP"
     let errorResponse = "BAD REQUEST"
@@ -41,20 +45,8 @@ namespace esp8266 {
     let webRxData = ""
 
     //% subcategory="Web Server"
-    //% weight=40
-    //% blockGap=8
-    //% blockId=esp8266_is_web_server_running
-    //% block="web server running"
-    export function isWebServerRunning(): boolean {
-        return webServerRunning
-    }
-
-    //% subcategory="Web Server"
-    //% weight=39
-    //% blockGap=8
     //% blockId=esp8266_start_web_server
     //% block="start web server at port %port"
-    //% port.min=1 port.max=65535
     export function startWebServer(port: number = 80) {
         webServerRunning = false
         if (isWifiConnected() == false) return
@@ -67,8 +59,6 @@ namespace esp8266 {
     }
 
     //% subcategory="Web Server"
-    //% weight=38
-    //% blockGap=8
     //% blockId=esp8266_stop_web_server
     //% block="stop web server"
     export function stopWebServer() {
@@ -82,8 +72,14 @@ namespace esp8266 {
     }
 
     //% subcategory="Web Server"
-    //% weight=37
-    //% blockGap=8
+    //% blockId=esp8266_configure_webapp_target
+    //% block="set web app target host %host port %port"
+    export function configureWebAppTarget(host: string, port: number = 80) {
+        webAppHost = host
+        webAppPort = port
+    }
+
+    //% subcategory="Web Server"
     //% blockId=esp8266_configure_input_route
     //% block="set input route %path sensor key %sensorKey value key %valueKey"
     export function configureInputRoute(path: string, sensorKey: string = "sensor", valueKey: string = "value") {
@@ -93,8 +89,6 @@ namespace esp8266 {
     }
 
     //% subcategory="Web Server"
-    //% weight=36
-    //% blockGap=8
     //% blockId=esp8266_configure_output_route
     //% block="set output route %path sensor key %sensorKey action key %actionKey"
     export function configureOutputRoute(path: string, sensorKey: string = "sensor", actionKey: string = "action") {
@@ -104,20 +98,53 @@ namespace esp8266 {
     }
 
     //% subcategory="Web Server"
-    //% weight=35
-    //% blockGap=8
     //% blockId=esp8266_set_webserver_response
-    //% block="set response input %inputMsg output %outputMsg health %healthMsg error %errorMsg"
-    export function setWebServerResponse(inputMsg: string, outputMsg: string, healthMsg: string = "UP", errorMsg: string = "BAD REQUEST") {
-        inputResponse = inputMsg
+    //% block="set response output %outputMsg health %healthMsg error %errorMsg"
+    export function setWebServerResponse(outputMsg: string, healthMsg: string = "UP", errorMsg: string = "BAD REQUEST") {
         outputResponse = outputMsg
         healthResponse = healthMsg
         errorResponse = errorMsg
     }
 
     //% subcategory="Web Server"
-    //% weight=34
-    //% blockGap=8
+    //% blockId=esp8266_send_input_to_webapp
+    //% block="send input to web app sensor %sensor value %value"
+    export function sendInputToWebApp(sensor: string, value: string) {
+        inputSent = false
+
+        if (isWifiConnected() == false) return
+        if (webAppHost == "") return
+
+        if (sendCommand("AT+CIPSTART=\"TCP\",\"" + webAppHost + "\"," + webAppPort, "OK", 5000) == false) return
+
+        let url = inputRoutePath + "?" + inputSensorKey + "=" + formatUrl(sensor) + "&" + inputValueKey + "=" + formatUrl(value)
+        let request = "GET " + url + " HTTP/1.1\r\n"
+        request += "Host: " + webAppHost + "\r\n"
+        request += "Connection: close\r\n\r\n"
+
+        if (sendCommand("AT+CIPSEND=" + (request.length + 2), "OK", 1000) == false) {
+            sendCommand("AT+CIPCLOSE", "OK", 1000)
+            return
+        }
+
+        sendCommand(request)
+        if (getResponse("SEND OK", 3000) == "") {
+            sendCommand("AT+CIPCLOSE", "OK", 1000)
+            return
+        }
+
+        inputSent = true
+        sendCommand("AT+CIPCLOSE", "OK", 1000)
+    }
+
+    //% subcategory="Web Server"
+    //% blockId=esp8266_is_input_sent
+    //% block="input sent to web app"
+    export function isInputSentToWebApp(): boolean {
+        return inputSent
+    }
+
+    //% subcategory="Web Server"
     //% blockId=esp8266_handle_web_get_request
     //% block="handle web GET request timeout(ms) %timeout"
     export function handleWebGetRequest(timeout: number = 100): boolean {
@@ -129,7 +156,6 @@ namespace esp8266 {
         let timestamp = input.runningTime()
         while (input.runningTime() - timestamp <= timeout) {
             webRxData += serial.readString()
-
             let request = extractHttpRequestFromBuffer()
             if (request != "") {
                 parseHttpRequest(request)
@@ -137,7 +163,6 @@ namespace esp8266 {
                 webRequestReceived = true
                 return true
             }
-
             basic.pause(5)
         }
 
@@ -145,76 +170,24 @@ namespace esp8266 {
     }
 
     //% subcategory="Web Server"
-    //% weight=33
-    //% blockGap=8
-    //% blockId=esp8266_is_web_request_received
-    //% block="web request received"
-    export function isWebRequestReceived(): boolean {
-        return webRequestReceived
-    }
-
-    //% subcategory="Web Server"
-    //% weight=32
-    //% blockGap=8
-    //% blockId=esp8266_web_route_type
-    //% block="last route type"
-    export function lastRouteTypeWeb(): string {
-        return lastRouteType
-    }
-
-    //% subcategory="Web Server"
-    //% weight=31
-    //% blockGap=8
-    //% blockId=esp8266_web_method
-    //% block="last method"
-    export function lastWebMethod(): string {
-        return lastMethod
-    }
-
-    //% subcategory="Web Server"
-    //% weight=30
-    //% blockGap=8
-    //% blockId=esp8266_web_path
-    //% block="last path"
-    export function lastWebPath(): string {
-        return lastPath
-    }
-
-    //% subcategory="Web Server"
-    //% weight=29
-    //% blockGap=8
-    //% blockId=esp8266_web_query
-    //% block="last query"
-    export function lastWebQuery(): string {
-        return lastRawQuery
-    }
-
-    //% subcategory="Web Server"
-    //% weight=28
-    //% blockGap=8
     //% blockId=esp8266_web_sensor
     //% block="last sensor"
-    export function lastWebSensor(): string {
-        return lastSensor
-    }
+    export function lastWebSensor(): string { return lastSensor }
 
     //% subcategory="Web Server"
-    //% weight=27
-    //% blockGap=8
     //% blockId=esp8266_web_value
     //% block="last value"
-    export function lastWebValue(): string {
-        return lastValue
-    }
+    export function lastWebValue(): string { return lastValue }
 
     //% subcategory="Web Server"
-    //% weight=26
-    //% blockGap=40
     //% blockId=esp8266_web_action
     //% block="last action"
-    export function lastWebAction(): string {
-        return lastAction
-    }
+    export function lastWebAction(): string { return lastAction }
+
+    //% subcategory="Web Server"
+    //% blockId=esp8266_web_route_type
+    //% block="last route type"
+    export function lastRouteTypeWeb(): string { return lastRouteType }
 
     function clearLastRequestValues() {
         lastMethod = ""
@@ -293,14 +266,6 @@ namespace esp8266 {
             return
         }
 
-        if (lastPath == inputRoutePath) {
-            lastRouteType = "input"
-            lastSensor = getQueryValue(lastRawQuery, inputSensorKey)
-            lastValue = getQueryValue(lastRawQuery, inputValueKey)
-            sendHttpResponse(linkId, 200, "OK", inputResponse)
-            return
-        }
-
         if (lastPath == outputRoutePath) {
             lastRouteType = "output"
             lastSensor = getQueryValue(lastRawQuery, outputSensorKey)
@@ -315,15 +280,11 @@ namespace esp8266 {
 
     function getQueryValue(query: string, key: string): string {
         if ((query == "") || (key == "")) return ""
-
         let params = query.split("&")
         for (let i = 0; i < params.length; i++) {
             let pair = params[i].split("=")
-            if (pair.length >= 2) {
-                if (pair[0] == key) return pair[1]
-            }
+            if ((pair.length >= 2) && (pair[0] == key)) return pair[1]
         }
-
         return ""
     }
 

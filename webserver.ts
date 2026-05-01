@@ -74,7 +74,7 @@ namespace esp8266 {
     export function showRealIPAddress() {
         sendCommand("AT+CIFSR")
         let line = getResponse("+CIFSR:STAIP", 2000)
-        serial.writeLine(line)
+        sendCommand("IP Address: " + line, "", 500)
         getResponse("OK", 500)
     }
 

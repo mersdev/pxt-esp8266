@@ -40,9 +40,7 @@ namespace esp8266 {
         if (!sendCommand("AT+CIPSERVER=1," + WEB_SERVER_PORT, "OK", 2000)) return
 
         // Show the real IP from ESP8266 immediately after server start.
-        showRealIPAddress()
         updateWebServerIP()
-        if (webServerIP != "") basic.showString(webServerIP)
         webServerRunning = true
     }
 
@@ -63,26 +61,27 @@ namespace esp8266 {
     //% blockId=esp8266_get_ip_address
     //% block="Get IP Address"
     export function getIPAddress(): string {
-        refreshWebServerIP()
-        if (webServerIP != "") basic.showString(webServerIP)
+        updateWebServerIP()
         return webServerIP
     }
 
     //% subcategory="Web Server"
     //% blockId=esp8266_show_real_ip
     //% block="Show Real IP Address"
-    export function showRealIPAddress() {
+    export function showRealIPAddress(): string {
         sendCommand("AT+CIFSR")
         let line = getResponse("+CIFSR:STAIP", 2000)
+        let ip = ""
         if (line != "") {
             let q1 = line.indexOf("\"")
             let q2 = line.indexOf("\"", q1 + 1)
             if ((q1 >= 0) && (q2 > q1)) {
-                let ip = line.substr(q1 + 1, q2 - q1 - 1)
-                basic.showString(ip)
+                ip = line.substr(q1 + 1, q2 - q1 - 1)
             }
         }
         getResponse("OK", 500)
+        if (ip != "") webServerIP = ip
+        return ip
     }
 
     //% subcategory="Web Server"

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Functions for HTTP GET web server/client.
+ * Minimal HTTP GET web server endpoints.
  *
  * Company: Cytron Technologies Sdn Bhd
  * Website: http://www.cytron.io
@@ -8,61 +8,42 @@
 
 namespace esp8266 {
     let webServerRunning = false
-    let webRequestReceived = false
-    let inputSent = false
+    let webServerIP = ""
 
-    // Inbound routes (web app -> micro:bit).
-    let outputRoutePath = "/output"
-    let healthRoutePath = "/health"
+    // Endpoint paths.
+    let receivedFromWebAppPath = "/receivedFromWebApp"
 
-    // Outbound route (micro:bit -> web app).
-    let inputRoutePath = "/input"
-    let webAppHost = ""
-    let webAppPort = 80
-
-    // Query keys.
-    let inputSensorKey = "sensor"
-    let inputValueKey = "value"
-    let outputSensorKey = "sensor"
-    let outputActionKey = "action"
-
-    // Last parsed values.
-    let lastMethod = ""
-    let lastPath = ""
-    let lastRawQuery = ""
+    // Parsed query values.
     let lastSensor = ""
-    let lastValue = ""
+    let lastOutput = ""
     let lastAction = ""
-    let lastRouteType = ""
-
-    // Responses.
-    let outputResponse = "OUTPUT OK"
-    let healthResponse = "UP"
-    let errorResponse = "BAD REQUEST"
 
     // Internal parser state.
     let webLinkId = -1
     let webRxData = ""
+    let pendingRoute = ""
 
     //% subcategory="Web Server"
     //% blockId=esp8266_start_web_server
-    //% block="start web server at port %port"
+    //% block="Start Web Server with Port %port"
+    //% port.min=1 port.max=65535
     export function startWebServer(port: number = 80) {
         webServerRunning = false
-        if (isWifiConnected() == false) return
+        if (!isWifiConnected()) return
 
         sendCommand("AT+CIPSERVER=0", "OK", 1000)
-        if (sendCommand("AT+CIPMUX=1", "OK", 1000) == false) return
-        if (sendCommand("AT+CIPSERVER=1," + port, "OK", 2000) == false) return
+        if (!sendCommand("AT+CIPMUX=1", "OK", 1000)) return
+        if (!sendCommand("AT+CIPSERVER=1," + port, "OK", 2000)) return
 
+        updateWebServerIP()
         webServerRunning = true
     }
 
     //% subcategory="Web Server"
     //% blockId=esp8266_stop_web_server
-    //% block="stop web server"
+    //% block="Stop Web Server"
     export function stopWebServer() {
-        if (sendCommand("AT+CIPSERVER=0", "OK", 2000) == false) {
+        if (!sendCommand("AT+CIPSERVER=0", "OK", 2000)) {
             webServerRunning = false
             return
         }
@@ -72,131 +53,102 @@ namespace esp8266 {
     }
 
     //% subcategory="Web Server"
-    //% blockId=esp8266_configure_webapp_target
-    //% block="set web app target host %host port %port"
-    export function configureWebAppTarget(host: string, port: number = 80) {
-        webAppHost = host
-        webAppPort = port
+    //% blockId=esp8266_get_ip_address
+    //% block="Get IP Address"
+    export function getIPAddress(): string {
+        if (webServerIP == "") updateWebServerIP()
+        return webServerIP
     }
 
     //% subcategory="Web Server"
-    //% blockId=esp8266_configure_input_route
-    //% block="set input route %path sensor key %sensorKey value key %valueKey"
-    export function configureInputRoute(path: string, sensorKey: string = "sensor", valueKey: string = "value") {
-        inputRoutePath = path
-        inputSensorKey = sensorKey
-        inputValueKey = valueKey
+    //% blockId=esp8266_received_from_web_app
+    //% block="Received /receivedFromWebApp Endpoint"
+    export function receivedReceivedFromWebAppEndpoint(): boolean {
+        if (!readOneRequest()) return false
+        if (pendingRoute != "receivedFromWebApp") return false
+
+        sendHttpResponse(webLinkId, 200, "OK", "RECEIVED")
+        return true
     }
 
     //% subcategory="Web Server"
-    //% blockId=esp8266_configure_output_route
-    //% block="set output route %path sensor key %sensorKey action key %actionKey"
-    export function configureOutputRoute(path: string, sensorKey: string = "sensor", actionKey: string = "action") {
-        outputRoutePath = path
-        outputSensorKey = sensorKey
-        outputActionKey = actionKey
+    //% blockId=esp8266_sensor
+    //% block="sensor"
+    export function sensor(): string {
+        return lastSensor
     }
 
     //% subcategory="Web Server"
-    //% blockId=esp8266_set_webserver_response
-    //% block="set response output %outputMsg health %healthMsg error %errorMsg"
-    export function setWebServerResponse(outputMsg: string, healthMsg: string = "UP", errorMsg: string = "BAD REQUEST") {
-        outputResponse = outputMsg
-        healthResponse = healthMsg
-        errorResponse = errorMsg
+    //% blockId=esp8266_output
+    //% block="output"
+    export function output(): string {
+        return lastOutput
     }
 
     //% subcategory="Web Server"
-    //% blockId=esp8266_send_input_to_webapp
-    //% block="send input to web app sensor %sensor value %value"
-    export function sendInputToWebApp(sensor: string, value: string) {
-        inputSent = false
+    //% blockId=esp8266_action
+    //% block="action"
+    export function action(): string {
+        return lastAction
+    }
 
-        if (isWifiConnected() == false) return
-        if (webAppHost == "") return
+    function updateWebServerIP() {
+        webServerIP = ""
+        if (!isWifiConnected()) return
 
-        if (sendCommand("AT+CIPSTART=\"TCP\",\"" + webAppHost + "\"," + webAppPort, "OK", 5000) == false) return
+        sendCommand("AT+CIFSR")
+        let line = getResponse("+CIFSR:STAIP", 2000)
+        if (line == "") return
 
-        let url = inputRoutePath + "?" + inputSensorKey + "=" + formatUrl(sensor) + "&" + inputValueKey + "=" + formatUrl(value)
-        let request = "GET " + url + " HTTP/1.1\r\n"
-        request += "Host: " + webAppHost + "\r\n"
-        request += "Connection: close\r\n\r\n"
-
-        if (sendCommand("AT+CIPSEND=" + (request.length + 2), "OK", 1000) == false) {
-            sendCommand("AT+CIPCLOSE", "OK", 1000)
-            return
+        let q1 = line.indexOf("\"")
+        let q2 = line.indexOf("\"", q1 + 1)
+        if ((q1 >= 0) && (q2 > q1)) {
+            webServerIP = line.substr(q1 + 1, q2 - q1 - 1)
         }
 
-        sendCommand(request)
-        if (getResponse("SEND OK", 3000) == "") {
-            sendCommand("AT+CIPCLOSE", "OK", 1000)
-            return
-        }
-
-        inputSent = true
-        sendCommand("AT+CIPCLOSE", "OK", 1000)
+        getResponse("OK", 500)
     }
 
-    //% subcategory="Web Server"
-    //% blockId=esp8266_is_input_sent
-    //% block="input sent to web app"
-    export function isInputSentToWebApp(): boolean {
-        return inputSent
-    }
+    function readOneRequest(): boolean {
+        clearPending()
+        if (!webServerRunning) return false
 
-    //% subcategory="Web Server"
-    //% blockId=esp8266_handle_web_get_request
-    //% block="handle web GET request timeout(ms) %timeout"
-    export function handleWebGetRequest(timeout: number = 100): boolean {
-        webRequestReceived = false
-        clearLastRequestValues()
-
-        if (webServerRunning == false) return false
-
-        let timestamp = input.runningTime()
-        while (input.runningTime() - timestamp <= timeout) {
+        let started = input.runningTime()
+        while (input.runningTime() - started <= 120) {
             webRxData += serial.readString()
+
             let request = extractHttpRequestFromBuffer()
-            if (request != "") {
-                parseHttpRequest(request)
-                routeRequestAndRespond(webLinkId)
-                webRequestReceived = true
+            if (request == "") {
+                basic.pause(5)
+                continue
+            }
+
+            parseHttpRequest(request)
+            if (pendingRoute == "invalid") {
+                return false
+            }
+
+            if (pendingRoute == "receivedFromWebApp") {
+                lastSensor = getQueryValue(requestPathQuery, "sensor")
+                lastOutput = getQueryValue(requestPathQuery, "output")
+                lastAction = getQueryValue(requestPathQuery, "action")
                 return true
             }
-            basic.pause(5)
+
+            sendHttpResponse(webLinkId, 404, "Not Found", "NOT FOUND")
+            return false
         }
 
         return false
     }
 
-    //% subcategory="Web Server"
-    //% blockId=esp8266_web_sensor
-    //% block="last sensor"
-    export function lastWebSensor(): string { return lastSensor }
+    let requestPath = ""
+    let requestPathQuery = ""
 
-    //% subcategory="Web Server"
-    //% blockId=esp8266_web_value
-    //% block="last value"
-    export function lastWebValue(): string { return lastValue }
-
-    //% subcategory="Web Server"
-    //% blockId=esp8266_web_action
-    //% block="last action"
-    export function lastWebAction(): string { return lastAction }
-
-    //% subcategory="Web Server"
-    //% blockId=esp8266_web_route_type
-    //% block="last route type"
-    export function lastRouteTypeWeb(): string { return lastRouteType }
-
-    function clearLastRequestValues() {
-        lastMethod = ""
-        lastPath = ""
-        lastRawQuery = ""
-        lastSensor = ""
-        lastValue = ""
-        lastAction = ""
-        lastRouteType = ""
+    function clearPending() {
+        pendingRoute = ""
+        requestPath = ""
+        requestPathQuery = ""
     }
 
     function extractHttpRequestFromBuffer(): string {
@@ -238,53 +190,42 @@ namespace esp8266 {
         let requestLine = request
         if (lineEnd >= 0) requestLine = request.substr(0, lineEnd)
 
-        let lineParts = requestLine.split(" ")
-        if (lineParts.length < 2) return
+        let parts = requestLine.split(" ")
+        if (parts.length < 2) {
+            pendingRoute = "invalid"
+            sendHttpResponse(webLinkId, 400, "Bad Request", "BAD REQUEST")
+            return
+        }
 
-        lastMethod = lineParts[0]
-        let pathWithQuery = lineParts[1]
+        if (parts[0] != "GET") {
+            pendingRoute = "invalid"
+            sendHttpResponse(webLinkId, 405, "Method Not Allowed", "GET ONLY")
+            return
+        }
 
+        let pathWithQuery = parts[1]
         let qPos = pathWithQuery.indexOf("?")
         if (qPos >= 0) {
-            lastPath = pathWithQuery.substr(0, qPos)
-            lastRawQuery = pathWithQuery.substr(qPos + 1)
+            requestPath = pathWithQuery.substr(0, qPos)
+            requestPathQuery = pathWithQuery.substr(qPos + 1)
         } else {
-            lastPath = pathWithQuery
-            lastRawQuery = ""
-        }
-    }
-
-    function routeRequestAndRespond(linkId: number) {
-        if (lastMethod != "GET") {
-            sendHttpResponse(linkId, 405, "Method Not Allowed", errorResponse)
-            return
+            requestPath = pathWithQuery
+            requestPathQuery = ""
         }
 
-        if (lastPath == healthRoutePath) {
-            lastRouteType = "health"
-            sendHttpResponse(linkId, 200, "OK", healthResponse)
-            return
-        }
-
-        if (lastPath == outputRoutePath) {
-            lastRouteType = "output"
-            lastSensor = getQueryValue(lastRawQuery, outputSensorKey)
-            lastAction = getQueryValue(lastRawQuery, outputActionKey)
-            sendHttpResponse(linkId, 200, "OK", outputResponse)
-            return
-        }
-
-        lastRouteType = "unknown"
-        sendHttpResponse(linkId, 404, "Not Found", errorResponse)
+        if (requestPath == receivedFromWebAppPath) pendingRoute = "receivedFromWebApp"
+        else pendingRoute = "unknown"
     }
 
     function getQueryValue(query: string, key: string): string {
         if ((query == "") || (key == "")) return ""
+
         let params = query.split("&")
         for (let i = 0; i < params.length; i++) {
             let pair = params[i].split("=")
             if ((pair.length >= 2) && (pair[0] == key)) return pair[1]
         }
+
         return ""
     }
 
@@ -297,7 +238,7 @@ namespace esp8266 {
         response += "Content-Length: " + body.length + "\r\n\r\n"
         response += body
 
-        if (sendCommand("AT+CIPSEND=" + linkId + "," + response.length, "OK", 1000) == false) {
+        if (!sendCommand("AT+CIPSEND=" + linkId + "," + response.length, "OK", 1000)) {
             sendCommand("AT+CIPCLOSE=" + linkId, "OK", 1000)
             return
         }

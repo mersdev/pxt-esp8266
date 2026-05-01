@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Functions for HTTP web server.
+ * Functions for HTTP GET web server.
  *
  * Company: Cytron Technologies Sdn Bhd
  * Website: http://www.cytron.io
@@ -7,30 +7,41 @@
  *******************************************************************************/
 
 namespace esp8266 {
-    // Flags.
     let webServerRunning = false
     let webRequestReceived = false
 
-    // Last request details.
-    let lastRequestMethod = ""
-    let lastRequestPath = ""
-    let lastRequestBody = ""
+    // Route settings.
+    let inputRoutePath = "/input"
+    let outputRoutePath = "/output"
+    let healthRoutePath = "/health"
 
-    // Response settings.
-    let webResponseMessage = "OK"
-    let webResponseStatusCode = 200
+    // Query key settings.
+    let inputSensorKey = "sensor"
+    let inputValueKey = "value"
+    let outputSensorKey = "sensor"
+    let outputActionKey = "action"
 
-    // Internal link id from +IPD.
+    // Last parsed values.
+    let lastMethod = ""
+    let lastPath = ""
+    let lastRawQuery = ""
+    let lastSensor = ""
+    let lastValue = ""
+    let lastAction = ""
+    let lastRouteType = ""
+
+    // Custom responses.
+    let inputResponse = "INPUT OK"
+    let outputResponse = "OUTPUT OK"
+    let healthResponse = "UP"
+    let errorResponse = "BAD REQUEST"
+
+    // Internal parser state.
     let webLinkId = -1
-
-    // Buffer for incoming server data.
     let webRxData = ""
 
-    /**
-     * Return true if web server is running.
-     */
     //% subcategory="Web Server"
-    //% weight=30
+    //% weight=40
     //% blockGap=8
     //% blockId=esp8266_is_web_server_running
     //% block="web server running"
@@ -38,49 +49,25 @@ namespace esp8266 {
         return webServerRunning
     }
 
-    /**
-     * Return true if latest web request is received and handled.
-     */
     //% subcategory="Web Server"
-    //% weight=29
-    //% blockGap=8
-    //% blockId=esp8266_is_web_request_received
-    //% block="web request received"
-    export function isWebRequestReceived(): boolean {
-        return webRequestReceived
-    }
-
-    /**
-     * Start web server and listen at selected port.
-     * @param port HTTP port. eg: 80
-     */
-    //% subcategory="Web Server"
-    //% weight=28
+    //% weight=39
     //% blockGap=8
     //% blockId=esp8266_start_web_server
     //% block="start web server at port %port"
     //% port.min=1 port.max=65535
     export function startWebServer(port: number = 80) {
         webServerRunning = false
-
-        // Make sure the WiFi is connected.
         if (isWifiConnected() == false) return
 
-        // Stop previous server first (ignore result).
         sendCommand("AT+CIPSERVER=0", "OK", 1000)
-
-        // Enable multiple connection mode and start TCP server.
         if (sendCommand("AT+CIPMUX=1", "OK", 1000) == false) return
         if (sendCommand("AT+CIPSERVER=1," + port, "OK", 2000) == false) return
 
         webServerRunning = true
     }
 
-    /**
-     * Stop web server.
-     */
     //% subcategory="Web Server"
-    //% weight=27
+    //% weight=38
     //% blockGap=8
     //% blockId=esp8266_stop_web_server
     //% block="stop web server"
@@ -90,38 +77,52 @@ namespace esp8266 {
             return
         }
 
-        // Restore single connection mode for existing client APIs.
         sendCommand("AT+CIPMUX=0", "OK", 1000)
         webServerRunning = false
     }
 
-    /**
-     * Set custom response returned by the web server.
-     * @param message HTTP response body text.
-     * @param statusCode HTTP status code. eg: 200
-     */
     //% subcategory="Web Server"
-    //% weight=26
+    //% weight=37
     //% blockGap=8
-    //% blockId=esp8266_set_web_response
-    //% block="set web response message %message status code %statusCode"
-    //% statusCode.min=100 statusCode.max=599
-    export function setWebResponse(message: string, statusCode: number = 200) {
-        webResponseMessage = message
-        webResponseStatusCode = statusCode
+    //% blockId=esp8266_configure_input_route
+    //% block="set input route %path sensor key %sensorKey value key %valueKey"
+    export function configureInputRoute(path: string, sensorKey: string = "sensor", valueKey: string = "value") {
+        inputRoutePath = path
+        inputSensorKey = sensorKey
+        inputValueKey = valueKey
     }
 
-    /**
-     * Check and handle one incoming web request.
-     * @param timeout Timeout in milliseconds. eg: 100
-     */
     //% subcategory="Web Server"
-    //% weight=25
+    //% weight=36
     //% blockGap=8
-    //% blockId=esp8266_handle_web_request
-    //% block="handle incoming web request with timeout(ms) %timeout"
-    export function handleWebRequest(timeout: number = 100): boolean {
+    //% blockId=esp8266_configure_output_route
+    //% block="set output route %path sensor key %sensorKey action key %actionKey"
+    export function configureOutputRoute(path: string, sensorKey: string = "sensor", actionKey: string = "action") {
+        outputRoutePath = path
+        outputSensorKey = sensorKey
+        outputActionKey = actionKey
+    }
+
+    //% subcategory="Web Server"
+    //% weight=35
+    //% blockGap=8
+    //% blockId=esp8266_set_webserver_response
+    //% block="set response input %inputMsg output %outputMsg health %healthMsg error %errorMsg"
+    export function setWebServerResponse(inputMsg: string, outputMsg: string, healthMsg: string = "UP", errorMsg: string = "BAD REQUEST") {
+        inputResponse = inputMsg
+        outputResponse = outputMsg
+        healthResponse = healthMsg
+        errorResponse = errorMsg
+    }
+
+    //% subcategory="Web Server"
+    //% weight=34
+    //% blockGap=8
+    //% blockId=esp8266_handle_web_get_request
+    //% block="handle web GET request timeout(ms) %timeout"
+    export function handleWebGetRequest(timeout: number = 100): boolean {
         webRequestReceived = false
+        clearLastRequestValues()
 
         if (webServerRunning == false) return false
 
@@ -132,7 +133,7 @@ namespace esp8266 {
             let request = extractHttpRequestFromBuffer()
             if (request != "") {
                 parseHttpRequest(request)
-                sendHttpResponse(webLinkId)
+                routeRequestAndRespond(webLinkId)
                 webRequestReceived = true
                 return true
             }
@@ -143,125 +144,197 @@ namespace esp8266 {
         return false
     }
 
-    /**
-     * Return the HTTP method from last handled request.
-     */
     //% subcategory="Web Server"
-    //% weight=24
+    //% weight=33
     //% blockGap=8
-    //% blockId=esp8266_last_web_request_method
-    //% block="last web request method"
-    export function lastWebRequestMethod(): string {
-        return lastRequestMethod
+    //% blockId=esp8266_is_web_request_received
+    //% block="web request received"
+    export function isWebRequestReceived(): boolean {
+        return webRequestReceived
     }
 
-    /**
-     * Return the path from last handled request.
-     */
     //% subcategory="Web Server"
-    //% weight=23
+    //% weight=32
     //% blockGap=8
-    //% blockId=esp8266_last_web_request_path
-    //% block="last web request path"
-    export function lastWebRequestPath(): string {
-        return lastRequestPath
+    //% blockId=esp8266_web_route_type
+    //% block="last route type"
+    export function lastRouteTypeWeb(): string {
+        return lastRouteType
     }
 
-    /**
-     * Return request body from last handled request.
-     */
     //% subcategory="Web Server"
-    //% weight=22
+    //% weight=31
+    //% blockGap=8
+    //% blockId=esp8266_web_method
+    //% block="last method"
+    export function lastWebMethod(): string {
+        return lastMethod
+    }
+
+    //% subcategory="Web Server"
+    //% weight=30
+    //% blockGap=8
+    //% blockId=esp8266_web_path
+    //% block="last path"
+    export function lastWebPath(): string {
+        return lastPath
+    }
+
+    //% subcategory="Web Server"
+    //% weight=29
+    //% blockGap=8
+    //% blockId=esp8266_web_query
+    //% block="last query"
+    export function lastWebQuery(): string {
+        return lastRawQuery
+    }
+
+    //% subcategory="Web Server"
+    //% weight=28
+    //% blockGap=8
+    //% blockId=esp8266_web_sensor
+    //% block="last sensor"
+    export function lastWebSensor(): string {
+        return lastSensor
+    }
+
+    //% subcategory="Web Server"
+    //% weight=27
+    //% blockGap=8
+    //% blockId=esp8266_web_value
+    //% block="last value"
+    export function lastWebValue(): string {
+        return lastValue
+    }
+
+    //% subcategory="Web Server"
+    //% weight=26
     //% blockGap=40
-    //% blockId=esp8266_last_web_request_body
-    //% block="last web request body"
-    export function lastWebRequestBody(): string {
-        return lastRequestBody
+    //% blockId=esp8266_web_action
+    //% block="last action"
+    export function lastWebAction(): string {
+        return lastAction
+    }
+
+    function clearLastRequestValues() {
+        lastMethod = ""
+        lastPath = ""
+        lastRawQuery = ""
+        lastSensor = ""
+        lastValue = ""
+        lastAction = ""
+        lastRouteType = ""
     }
 
     function extractHttpRequestFromBuffer(): string {
         let start = webRxData.indexOf("+IPD,")
         if (start < 0) {
-            // Trim stale data.
-            if (webRxData.length > 256) {
-                webRxData = webRxData.substr(webRxData.length - 128)
-            }
+            if (webRxData.length > 256) webRxData = webRxData.substr(webRxData.length - 128)
             return ""
         }
 
         let colon = webRxData.indexOf(":", start)
         if (colon < 0) return ""
 
-        // +IPD,<link id>,<length>:<payload>
         let header = webRxData.substr(start + 5, colon - (start + 5))
-        let headerParts = header.split(",")
-        if (headerParts.length < 2) {
+        let parts = header.split(",")
+        if (parts.length < 2) {
             webRxData = webRxData.substr(colon + 1)
             return ""
         }
 
-        webLinkId = parseInt(headerParts[0])
-        let payloadLen = parseInt(headerParts[1])
-
+        webLinkId = parseInt(parts[0])
+        let payloadLen = parseInt(parts[1])
         if ((webLinkId < 0) || (payloadLen <= 0)) {
             webRxData = webRxData.substr(colon + 1)
             return ""
         }
 
         let payloadStart = colon + 1
-        let availableLen = webRxData.length - payloadStart
-        if (availableLen < payloadLen) return ""
+        if ((webRxData.length - payloadStart) < payloadLen) return ""
 
         let payload = webRxData.substr(payloadStart, payloadLen)
-
-        // Remove parsed packet and keep remaining data.
         webRxData = webRxData.substr(payloadStart + payloadLen)
         return payload
     }
 
     function parseHttpRequest(request: string) {
-        lastRequestMethod = ""
-        lastRequestPath = ""
-        lastRequestBody = ""
-
         let lineEnd = request.indexOf("\r\n")
         if (lineEnd < 0) lineEnd = request.indexOf("\n")
 
         let requestLine = request
-        if (lineEnd >= 0) {
-            requestLine = request.substr(0, lineEnd)
-        }
+        if (lineEnd >= 0) requestLine = request.substr(0, lineEnd)
 
         let lineParts = requestLine.split(" ")
-        if (lineParts.length >= 2) {
-            lastRequestMethod = lineParts[0]
-            lastRequestPath = lineParts[1]
-        }
+        if (lineParts.length < 2) return
 
-        let bodyStart = request.indexOf("\r\n\r\n")
-        if (bodyStart >= 0) {
-            lastRequestBody = request.substr(bodyStart + 4)
+        lastMethod = lineParts[0]
+        let pathWithQuery = lineParts[1]
+
+        let qPos = pathWithQuery.indexOf("?")
+        if (qPos >= 0) {
+            lastPath = pathWithQuery.substr(0, qPos)
+            lastRawQuery = pathWithQuery.substr(qPos + 1)
+        } else {
+            lastPath = pathWithQuery
+            lastRawQuery = ""
         }
     }
 
-    function sendHttpResponse(linkId: number) {
-        if (linkId < 0) return
-
-        let statusText = "OK"
-        switch (webResponseStatusCode) {
-            case 200: statusText = "OK"; break
-            case 201: statusText = "Created"; break
-            case 400: statusText = "Bad Request"; break
-            case 404: statusText = "Not Found"; break
-            case 500: statusText = "Internal Server Error"; break
-            default: statusText = "OK"; break
+    function routeRequestAndRespond(linkId: number) {
+        if (lastMethod != "GET") {
+            sendHttpResponse(linkId, 405, "Method Not Allowed", errorResponse)
+            return
         }
 
-        let response = "HTTP/1.1 " + webResponseStatusCode + " " + statusText + "\r\n"
+        if (lastPath == healthRoutePath) {
+            lastRouteType = "health"
+            sendHttpResponse(linkId, 200, "OK", healthResponse)
+            return
+        }
+
+        if (lastPath == inputRoutePath) {
+            lastRouteType = "input"
+            lastSensor = getQueryValue(lastRawQuery, inputSensorKey)
+            lastValue = getQueryValue(lastRawQuery, inputValueKey)
+            sendHttpResponse(linkId, 200, "OK", inputResponse)
+            return
+        }
+
+        if (lastPath == outputRoutePath) {
+            lastRouteType = "output"
+            lastSensor = getQueryValue(lastRawQuery, outputSensorKey)
+            lastAction = getQueryValue(lastRawQuery, outputActionKey)
+            sendHttpResponse(linkId, 200, "OK", outputResponse)
+            return
+        }
+
+        lastRouteType = "unknown"
+        sendHttpResponse(linkId, 404, "Not Found", errorResponse)
+    }
+
+    function getQueryValue(query: string, key: string): string {
+        if ((query == "") || (key == "")) return ""
+
+        let params = query.split("&")
+        for (let i = 0; i < params.length; i++) {
+            let pair = params[i].split("=")
+            if (pair.length >= 2) {
+                if (pair[0] == key) return pair[1]
+            }
+        }
+
+        return ""
+    }
+
+    function sendHttpResponse(linkId: number, statusCode: number, statusText: string, body: string) {
+        if (linkId < 0) return
+
+        let response = "HTTP/1.1 " + statusCode + " " + statusText + "\r\n"
         response += "Content-Type: text/plain\r\n"
         response += "Connection: close\r\n"
-        response += "Content-Length: " + webResponseMessage.length + "\r\n\r\n"
-        response += webResponseMessage
+        response += "Content-Length: " + body.length + "\r\n\r\n"
+        response += body
 
         if (sendCommand("AT+CIPSEND=" + linkId + "," + response.length, "OK", 1000) == false) {
             sendCommand("AT+CIPCLOSE=" + linkId, "OK", 1000)

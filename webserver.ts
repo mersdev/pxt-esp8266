@@ -61,7 +61,7 @@ namespace esp8266 {
     //% blockId=esp8266_get_ip_address
     //% block="Get IP Address"
     export function getIPAddress(): string {
-        if (webServerIP == "") updateWebServerIP()
+        refreshWebServerIP()
         serial.writeLine("IP Address: " + webServerIP)
         return webServerIP
     }
@@ -71,6 +71,18 @@ namespace esp8266 {
     //% block="Web Server Started"
     export function webServerStarted(): boolean {
         return webServerRunning
+    }
+
+    //% subcategory="Web Server"
+    //% blockId=esp8266_web_server_online
+    //% block="Web Server Online"
+    export function webServerOnline(): boolean {
+        return webServerRunning
+    }
+
+    //% blockHidden=true
+    export function refreshWebServerIP() {
+        updateWebServerIP()
     }
 
     //% subcategory="Web Server"

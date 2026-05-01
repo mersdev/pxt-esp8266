@@ -34,6 +34,7 @@ namespace esp8266 {
         sendCommand("AT+CIPSERVER=0", "OK", 1000)
         if (!sendCommand("AT+CIPMUX=1", "OK", 1000)) return
         if (!sendCommand("AT+CIPSERVER=1," + port, "OK", 2000)) return
+        sendCommand("IP Address: " + webServerIP)
 
         updateWebServerIP()
         webServerRunning = true

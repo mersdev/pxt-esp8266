@@ -57,6 +57,7 @@ namespace esp8266 {
     //% block="Get IP Address"
     export function getIPAddress(): string {
         if (webServerIP == "") updateWebServerIP()
+        serial.writeLine("IP Address: " + webServerIP)
         return webServerIP
     }
 

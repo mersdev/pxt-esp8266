@@ -39,6 +39,8 @@ namespace esp8266 {
         if (!sendCommand("AT+CIPMUX=1", "OK", 1000)) return
         if (!sendCommand("AT+CIPSERVER=1," + WEB_SERVER_PORT, "OK", 2000)) return
 
+        // Show the real IP from ESP8266 immediately after server start.
+        showRealIPAddress()
         updateWebServerIP()
         serial.writeLine("IP Address: " + webServerIP)
         webServerRunning = true
@@ -64,6 +66,16 @@ namespace esp8266 {
         refreshWebServerIP()
         serial.writeLine("IP Address: " + webServerIP)
         return webServerIP
+    }
+
+    //% subcategory="Web Server"
+    //% blockId=esp8266_show_real_ip
+    //% block="Show Real IP Address"
+    export function showRealIPAddress() {
+        sendCommand("AT+CIFSR")
+        let line = getResponse("+CIFSR:STAIP", 2000)
+        serial.writeLine(line)
+        getResponse("OK", 500)
     }
 
     //% subcategory="Web Server"

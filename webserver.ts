@@ -42,7 +42,7 @@ namespace esp8266 {
         // Show the real IP from ESP8266 immediately after server start.
         showRealIPAddress()
         updateWebServerIP()
-        serial.writeLine("IP Address: " + webServerIP)
+        if (webServerIP != "") basic.showString(webServerIP)
         webServerRunning = true
     }
 
@@ -64,7 +64,7 @@ namespace esp8266 {
     //% block="Get IP Address"
     export function getIPAddress(): string {
         refreshWebServerIP()
-        serial.writeLine("IP Address: " + webServerIP)
+        if (webServerIP != "") basic.showString(webServerIP)
         return webServerIP
     }
 
@@ -74,7 +74,14 @@ namespace esp8266 {
     export function showRealIPAddress() {
         sendCommand("AT+CIFSR")
         let line = getResponse("+CIFSR:STAIP", 2000)
-        sendCommand("IP Address: " + line, "", 500)
+        if (line != "") {
+            let q1 = line.indexOf("\"")
+            let q2 = line.indexOf("\"", q1 + 1)
+            if ((q1 >= 0) && (q2 > q1)) {
+                let ip = line.substr(q1 + 1, q2 - q1 - 1)
+                basic.showString(ip)
+            }
+        }
         getResponse("OK", 500)
     }
 

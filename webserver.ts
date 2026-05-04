@@ -112,118 +112,71 @@ namespace esp8266 {
         webLastDebugCode = 1
         webLastBody = ""
 
-        if (sendCommand("AT+CIPSTART=\"TCP\",\"" + WEB_API_URL + "\",80", "OK", 10000) == false) {
+        // Connect to backend.
+        if (sendCommand("AT+CIPSTART=\"TCP\",\"" + WEB_API_URL + "\",80", "OK", 5000) == true) {
+
+            // Construct the data to send.
+            let data = "GET /api/microbit/receiveFromWebApp?pin=" + formatUrl(pin) + " HTTP/1.1\r\n"
+            data += "Host: " + WEB_API_URL + "\r\n"
+            data += "x-api-key: " + apiKey + "\r\n"
+            data += "accept: text/plain\r\n"
+            data += "\r\n"
+
+            // Send the data.
+            sendCommand("AT+CIPSEND=" + (data.length + 2), "OK")
+            sendCommand(data)
+            webLastDebugStep = "REQUEST_SENT"
+            webLastDebugCode = 4
+
+            // Verify if "SEND OK" is received.
+            if (getResponse("SEND OK", 5000) != "") {
+                webLastDebugStep = "SEND_OK"
+                webLastDebugCode = 6
+
+                // Make sure response is 200.
+                webLastHttpStatus = getResponse("HTTP/1.1", 5000)
+                if (webLastHttpStatus.includes("200 OK")) {
+                    webLastDebugStep = "HTTP_200"
+                    webLastDebugCode = 8
+
+                    // Get the action.
+                    // It should be the last line in the response.
+                    while (true) {
+                        let response = getResponse("", 200)
+                        if (response == "") {
+                            break
+                        } else {
+                            webLastRawResponse += response + "\r\n"
+                            if (!response.includes("HTTP/") && !response.includes(":") && response != "CLOSED") {
+                                action = response.trim()
+                            }
+                        }
+                    }
+
+                    webLastBody = action
+                    webLastDebugStep = "PARSED_" + action
+                    webLastDebugCode = 9
+
+                    // Set the successful flag.
+                    webUpdated = true
+                } else {
+                    webLastDebugStep = "HTTP_NOT_200"
+                    webLastDebugCode = 7
+                }
+            } else {
+                webLastDebugStep = "SEND_FAIL"
+                webLastDebugCode = 5
+            }
+        } else {
             webLastDebugStep = "CIPSTART_FAIL"
             webLastDebugCode = 2
-            return action
-        }
-        webLastDebugStep = "CIPSTART_OK"
-        webLastDebugCode = 3
-
-        let endpoint = "/api/microbit/receiveFromWebApp?pin=" + formatUrl(pin)
-        let data = "GET " + endpoint + " HTTP/1.1\r\n"
-        data += "Host: " + WEB_API_URL + "\r\n"
-        data += "Connection: close\r\n"
-        data += "accept: text/plain\r\n"
-        data += "x-api-key: " + apiKey + "\r\n"
-        data += "\r\n"
-
-        sendCommand("AT+CIPSEND=" + (data.length + 2), "OK")
-        sendCommand(data)
-        webLastDebugStep = "REQUEST_SENT"
-        webLastDebugCode = 4
-
-        if (getResponse("SEND OK", 5000) == "") {
-            webLastDebugStep = "SEND_FAIL"
-            webLastDebugCode = 5
-            sendCommand("AT+CIPCLOSE", "OK", 1000)
-            return action
-        }
-        webLastDebugStep = "SEND_OK"
-        webLastDebugCode = 6
-
-        webLastHttpStatus = getResponse("HTTP/1.1", 5000)
-        if (webLastHttpStatus.includes("200") == false) {
-            webLastDebugStep = "HTTP_NOT_200"
-            webLastDebugCode = 7
-            sendCommand("AT+CIPCLOSE", "OK", 1000)
-            return action
-        }
-        webLastDebugStep = "HTTP_200"
-        webLastDebugCode = 8
-
-        // Collect remaining response chunks from parser buffer and UART.
-        // This is more robust for fragmented +IPD frames.
-        let rawResponse = ""
-        while (true) {
-            let buffered = getResponse("", 1)
-            if (buffered == "") {
-                break
-            }
-            rawResponse += buffered + "\r\n"
-        }
-        let timestamp = input.runningTime()
-        while (input.runningTime() - timestamp < 1200) {
-            let chunk = serial.readString()
-            if (chunk != "") {
-                rawResponse += chunk
-                if (rawResponse.includes("CLOSED")) {
-                    break
-                }
-            }
-            basic.pause(30)
-        }
-        webLastRawResponse = rawResponse
-
-        let candidate = ""
-        if (rawResponse.includes("\r\n\r\n")) {
-            candidate = rawResponse.slice(rawResponse.indexOf("\r\n\r\n") + 4)
-        } else if (rawResponse.includes("+IPD,") && rawResponse.includes(":")) {
-            candidate = rawResponse.slice(rawResponse.indexOf(":") + 1)
         }
 
-        // Remove chunked transfer prefix if present: "<hex>\\r\\n<body>"
-        if (candidate.includes("\r\n")) {
-            let firstLine = candidate.slice(0, candidate.indexOf("\r\n")).trim()
-            let secondPart = candidate.slice(candidate.indexOf("\r\n") + 2)
-            if ((firstLine.length > 0) && (firstLine.length <= 8)) {
-                let isHex = true
-                for (let i = 0; i < firstLine.length; i++) {
-                    let c = firstLine.charCodeAt(i)
-                    let isNum = (c >= 48 && c <= 57)
-                    let isUpperHex = (c >= 65 && c <= 70)
-                    let isLowerHex = (c >= 97 && c <= 102)
-                    if (!(isNum || isUpperHex || isLowerHex)) {
-                        isHex = false
-                        break
-                    }
-                }
-                if (isHex) {
-                    candidate = secondPart
-                }
-            }
-        }
-
-        if (candidate.includes("\r\n")) {
-            candidate = candidate.slice(0, candidate.indexOf("\r\n"))
-        }
-
-        candidate = candidate.trim()
-        webLastBody = candidate
-        if (candidate != "") {
-            action = candidate
-        }
-        if (action == "") {
-            action = "NONE"
-        }
-        webLastDebugStep = "PARSED_" + action
-        webLastDebugCode = 9
-
+        // Close the connection.
         sendCommand("AT+CIPCLOSE", "OK", 1000)
-
-        webUpdated = true
         webLastDebugStep = "DONE"
         webLastDebugCode = 10
+
         return action
     }
 

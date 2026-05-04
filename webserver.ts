@@ -98,7 +98,7 @@ namespace esp8266 {
         webLastDebugStep = "START"
         webLastDebugCode = 1
 
-        if (sendCommand("AT+CIPSTART=\"SSL\",\"" + WEB_API_URL + "\",443", "OK", 10000) == false) {
+        if (sendCommand("AT+CIPSTART=\"TCP\",\"" + WEB_API_URL + "\",80", "OK", 10000) == false) {
             webLastDebugStep = "CIPSTART_FAIL"
             webLastDebugCode = 2
             return action
@@ -190,7 +190,7 @@ namespace esp8266 {
         // Reset the request successful flag.
         webUpdated = false
 
-        if (sendCommand("AT+CIPSTART=\"SSL\",\"" + WEB_API_URL + "\",443", "OK", 10000) == false) return
+        if (sendCommand("AT+CIPSTART=\"TCP\",\"" + WEB_API_URL + "\",80", "OK", 10000) == false) return
 
         let endpoint = "/api/microbit/sendToWebApp?pin=" + formatUrl(pin) + "&value=" + formatUrl(value)
         let data = "GET " + endpoint + " HTTP/1.1\r\n"

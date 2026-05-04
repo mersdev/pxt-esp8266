@@ -155,10 +155,13 @@ namespace esp8266 {
         // This is more robust for fragmented +IPD frames.
         let rawResponse = ""
         let timestamp = input.runningTime()
-        while (input.runningTime() - timestamp < 4000) {
+        while (input.runningTime() - timestamp < 1200) {
             let chunk = serial.readString()
             if (chunk != "") {
                 rawResponse += chunk
+                if (rawResponse.includes("CLOSED")) {
+                    break
+                }
             }
             basic.pause(30)
         }
@@ -201,6 +204,9 @@ namespace esp8266 {
         webLastBody = candidate
         if (candidate != "") {
             action = candidate
+        }
+        if (action == "") {
+            action = "NONE"
         }
         webLastDebugStep = "PARSED_" + action
         webLastDebugCode = 9

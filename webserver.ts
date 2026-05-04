@@ -70,9 +70,6 @@ namespace esp8266 {
         webLastRawResponse = ""
         webLastHttpStatus = ""
 
-        // Make sure the WiFi is connected.
-        if (isWifiConnected() == false) return action
-
         if (sendCommand("AT+CIPSTART=\"SSL\",\"" + WEB_API_URL + "\",443", "OK", 10000) == false) return action
 
         let endpoint = "/api/microbit/receiveFromWebApp?pin=" + formatUrl(pin)
@@ -144,9 +141,6 @@ namespace esp8266 {
     export function sendToWebApp(apiKey: string, pin: string, value: string) {
         // Reset the request successful flag.
         webUpdated = false
-
-        // Make sure the WiFi is connected.
-        if (isWifiConnected() == false) return
 
         if (sendCommand("AT+CIPSTART=\"SSL\",\"" + WEB_API_URL + "\",443", "OK", 10000) == false) return
 

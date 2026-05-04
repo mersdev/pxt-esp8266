@@ -12,6 +12,9 @@ const WEB_API_URL = "backend.whalo8040.workers.dev"
 namespace esp8266 {
     // Flag to indicate whether the Web request was completed successfully.
     let webUpdated = false
+    // Debug buffer for latest raw response captured from ESP8266.
+    let webLastRawResponse = ""
+    let webLastHttpStatus = ""
 
     /**
      * Return true if the latest Web request is successful.
@@ -23,6 +26,30 @@ namespace esp8266 {
     //% block="Web request successful"
     export function isWebUpdated(): boolean {
         return webUpdated
+    }
+
+    /**
+     * Return the latest raw response captured from receiveFromWebApp.
+     */
+    //% subcategory="Web"
+    //% weight=27
+    //% blockGap=8
+    //% blockId=esp8266_get_web_last_raw_response
+    //% block="Web last raw response"
+    export function getWebLastRawResponse(): string {
+        return webLastRawResponse
+    }
+
+    /**
+     * Return the latest HTTP status line captured from receiveFromWebApp.
+     */
+    //% subcategory="Web"
+    //% weight=26
+    //% blockGap=8
+    //% blockId=esp8266_get_web_last_http_status
+    //% block="Web last HTTP status"
+    export function getWebLastHttpStatus(): string {
+        return webLastHttpStatus
     }
 
     /**
@@ -40,6 +67,8 @@ namespace esp8266 {
 
         // Reset the request successful flag.
         webUpdated = false
+        webLastRawResponse = ""
+        webLastHttpStatus = ""
 
         // Make sure the WiFi is connected.
         if (isWifiConnected() == false) return action
@@ -61,7 +90,8 @@ namespace esp8266 {
             return action
         }
 
-        if (getResponse("HTTP/1.1", 5000).includes("200") == false) {
+        webLastHttpStatus = getResponse("HTTP/1.1", 5000)
+        if (webLastHttpStatus.includes("200") == false) {
             sendCommand("AT+CIPCLOSE", "OK", 1000)
             return action
         }
@@ -76,6 +106,7 @@ namespace esp8266 {
             }
             rawResponse += response + "\r\n"
         }
+        webLastRawResponse = rawResponse
 
         let candidate = ""
         if (rawResponse.includes("\r\n\r\n")) {

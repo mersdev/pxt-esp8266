@@ -151,15 +151,16 @@ namespace esp8266 {
         webLastDebugStep = "HTTP_200"
         webLastDebugCode = 8
 
-        // Collect remaining response chunks and parse body deterministically.
+        // Collect remaining response chunks directly from UART.
+        // This is more robust for fragmented +IPD frames.
         let rawResponse = ""
         let timestamp = input.runningTime()
-        while (input.runningTime() - timestamp < 2000) {
-            let response = getResponse("", 200)
-            if (response == "") {
-                continue
+        while (input.runningTime() - timestamp < 4000) {
+            let chunk = serial.readString()
+            if (chunk != "") {
+                rawResponse += chunk
             }
-            rawResponse += response + "\r\n"
+            basic.pause(30)
         }
         webLastRawResponse = rawResponse
 

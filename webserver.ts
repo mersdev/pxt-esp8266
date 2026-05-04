@@ -66,29 +66,31 @@ namespace esp8266 {
             return action
         }
 
-        while (true) {
+        // Collect remaining response chunks and parse body deterministically.
+        let rawResponse = ""
+        let timestamp = input.runningTime()
+        while (input.runningTime() - timestamp < 2000) {
             let response = getResponse("", 200)
             if (response == "") {
-                break
+                continue
             }
+            rawResponse += response + "\r\n"
+        }
 
-            // Parse actual body payload and ignore headers/control lines.
-            let candidate = response
-            if (candidate.includes("+IPD,") && candidate.includes(":")) {
-                candidate = candidate.slice(candidate.indexOf(":") + 1)
-            }
-            if (candidate.includes("\r\n")) {
-                candidate = candidate.slice(0, candidate.indexOf("\r\n"))
-            }
-            candidate = candidate.trim()
+        let candidate = ""
+        if (rawResponse.includes("\r\n\r\n")) {
+            candidate = rawResponse.slice(rawResponse.indexOf("\r\n\r\n") + 4)
+        } else if (rawResponse.includes("+IPD,") && rawResponse.includes(":")) {
+            candidate = rawResponse.slice(rawResponse.indexOf(":") + 1)
+        }
 
-            if ((candidate != "") &&
-                (candidate != "CLOSED") &&
-                (candidate.includes("HTTP/") == false) &&
-                (candidate.includes(":") == false) &&
-                (candidate.includes(" ") == false)) {
-                action = candidate
-            }
+        if (candidate.includes("\r\n")) {
+            candidate = candidate.slice(0, candidate.indexOf("\r\n"))
+        }
+
+        candidate = candidate.trim()
+        if (candidate != "") {
+            action = candidate
         }
 
         sendCommand("AT+CIPCLOSE", "OK", 1000)

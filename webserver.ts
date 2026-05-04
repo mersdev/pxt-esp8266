@@ -49,7 +49,9 @@ namespace esp8266 {
         let endpoint = "/api/microbit/receiveFromWebApp?pin=" + formatUrl(pin)
         let data = "GET " + endpoint + " HTTP/1.1\r\n"
         data += "Host: " + WEB_API_URL + "\r\n"
+        data += "accept: text/plain\r\n"
         data += "x-api-key: " + apiKey + "\r\n"
+        data += "\r\n"
 
         sendCommand("AT+CIPSEND=" + (data.length + 2), "OK")
         sendCommand(data)
@@ -70,8 +72,22 @@ namespace esp8266 {
                 break
             }
 
-            if (!response.includes("HTTP/")) {
-                action = response
+            // Parse actual body payload and ignore headers/control lines.
+            let candidate = response
+            if (candidate.includes("+IPD,") && candidate.includes(":")) {
+                candidate = candidate.slice(candidate.indexOf(":") + 1)
+            }
+            if (candidate.includes("\r\n")) {
+                candidate = candidate.slice(0, candidate.indexOf("\r\n"))
+            }
+            candidate = candidate.trim()
+
+            if ((candidate != "") &&
+                (candidate != "CLOSED") &&
+                (candidate.includes("HTTP/") == false) &&
+                (candidate.includes(":") == false) &&
+                (candidate.includes(" ") == false)) {
+                action = candidate
             }
         }
 
@@ -105,6 +121,7 @@ namespace esp8266 {
         let data = "GET " + endpoint + " HTTP/1.1\r\n"
         data += "Host: " + WEB_API_URL + "\r\n"
         data += "x-api-key: " + apiKey + "\r\n"
+        data += "\r\n"
 
         sendCommand("AT+CIPSEND=" + (data.length + 2), "OK")
         sendCommand(data)

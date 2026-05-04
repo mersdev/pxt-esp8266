@@ -12,9 +12,6 @@ const WEB_API_URL = "backend.whalo8040.workers.dev"
 namespace esp8266 {
     // Flag to indicate whether the Web request was completed successfully.
     let webUpdated = false
-    // Latest command returned by receiveFromWebApp endpoint.
-    let webPin = "NONE"
-    let webAction = "NONE"
 
     /**
      * Return true if the latest Web request is successful.
@@ -29,52 +26,27 @@ namespace esp8266 {
     }
 
     /**
-     * Return latest pin from Web poll command.
-     */
-    //% subcategory="Web"
-    //% weight=27
-    //% blockGap=8
-    //% blockId=esp8266_get_web_pin
-    //% block="Web pin"
-    export function getWebPin(): string {
-        return webPin
-    }
-
-    /**
-     * Return latest action from Web poll command.
-     */
-    //% subcategory="Web"
-    //% weight=26
-    //% blockGap=8
-    //% blockId=esp8266_get_web_action
-    //% block="Web action"
-    export function getWebAction(): string {
-        return webAction
-    }
-
-    /**
      * Poll latest command from web app.
      * @param apiKey API key for x-api-key header.
+     * @param pin Pin identifier to poll. eg: motor1
      */
     //% subcategory="Web"
     //% weight=29
     //% blockGap=8
     //% blockId=esp8266_receive_from_web_app
-    //% block="Web poll command: API key %apiKey"
-    export function receiveFromWebApp(apiKey: string): string {
-        let command = "NONE|NONE"
+    //% block="Web poll command: API key %apiKey Pin %pin"
+    export function receiveFromWebApp(apiKey: string, pin: string): string {
+        let action = "NONE"
 
         // Reset the request successful flag.
         webUpdated = false
-        webPin = "NONE"
-        webAction = "NONE"
 
         // Make sure the WiFi is connected.
-        if (isWifiConnected() == false) return command
+        if (isWifiConnected() == false) return action
 
-        if (sendCommand("AT+CIPSTART=\"SSL\",\"" + WEB_API_URL + "\",443", "OK", 10000) == false) return command
+        if (sendCommand("AT+CIPSTART=\"SSL\",\"" + WEB_API_URL + "\",443", "OK", 10000) == false) return action
 
-        let endpoint = "/api/microbit/receiveFromWebApp"
+        let endpoint = "/api/microbit/receiveFromWebApp?pin=" + formatUrl(pin)
         let data = "GET " + endpoint + " HTTP/1.1\r\n"
         data += "Host: " + WEB_API_URL + "\r\n"
         data += "x-api-key: " + apiKey + "\r\n"
@@ -84,12 +56,12 @@ namespace esp8266 {
 
         if (getResponse("SEND OK", 5000) == "") {
             sendCommand("AT+CIPCLOSE", "OK", 1000)
-            return command
+            return action
         }
 
         if (getResponse("HTTP/1.1", 5000).includes("200") == false) {
             sendCommand("AT+CIPCLOSE", "OK", 1000)
-            return command
+            return action
         }
 
         while (true) {
@@ -98,21 +70,15 @@ namespace esp8266 {
                 break
             }
 
-            if (response.includes("|") && !response.includes("HTTP/")) {
-                command = response
+            if (!response.includes("HTTP/")) {
+                action = response
             }
         }
 
         sendCommand("AT+CIPCLOSE", "OK", 1000)
 
-        let commandArray = command.split("|")
-        if (commandArray.length >= 2) {
-            webPin = commandArray[0]
-            webAction = commandArray[1]
-        }
-
         webUpdated = true
-        return command
+        return action
     }
 
     /**

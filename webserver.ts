@@ -17,6 +17,7 @@ namespace esp8266 {
     let webLastHttpStatus = ""
     let webLastDebugStep = "IDLE"
     let webLastDebugCode = 0
+    let webLastBody = ""
 
     /**
      * Return true if the latest Web request is successful.
@@ -79,6 +80,18 @@ namespace esp8266 {
     }
 
     /**
+     * Return parsed Web response body from last poll.
+     */
+    //% subcategory="Web"
+    //% weight=23
+    //% blockGap=8
+    //% blockId=esp8266_get_web_last_body
+    //% block="Web last body"
+    export function getWebLastBody(): string {
+        return webLastBody
+    }
+
+    /**
      * Poll latest command from web app.
      * @param apiKey API key for x-api-key header.
      * @param pin Pin identifier to poll. eg: motor1
@@ -97,6 +110,7 @@ namespace esp8266 {
         webLastHttpStatus = ""
         webLastDebugStep = "START"
         webLastDebugCode = 1
+        webLastBody = ""
 
         if (sendCommand("AT+CIPSTART=\"TCP\",\"" + WEB_API_URL + "\",80", "OK", 10000) == false) {
             webLastDebugStep = "CIPSTART_FAIL"
@@ -156,11 +170,34 @@ namespace esp8266 {
             candidate = rawResponse.slice(rawResponse.indexOf(":") + 1)
         }
 
+        // Remove chunked transfer prefix if present: "<hex>\\r\\n<body>"
+        if (candidate.includes("\r\n")) {
+            let firstLine = candidate.slice(0, candidate.indexOf("\r\n")).trim()
+            let secondPart = candidate.slice(candidate.indexOf("\r\n") + 2)
+            if ((firstLine.length > 0) && (firstLine.length <= 8)) {
+                let isHex = true
+                for (let i = 0; i < firstLine.length; i++) {
+                    let c = firstLine.charCodeAt(i)
+                    let isNum = (c >= 48 && c <= 57)
+                    let isUpperHex = (c >= 65 && c <= 70)
+                    let isLowerHex = (c >= 97 && c <= 102)
+                    if (!(isNum || isUpperHex || isLowerHex)) {
+                        isHex = false
+                        break
+                    }
+                }
+                if (isHex) {
+                    candidate = secondPart
+                }
+            }
+        }
+
         if (candidate.includes("\r\n")) {
             candidate = candidate.slice(0, candidate.indexOf("\r\n"))
         }
 
         candidate = candidate.trim()
+        webLastBody = candidate
         if (candidate != "") {
             action = candidate
         }

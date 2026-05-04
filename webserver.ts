@@ -12,6 +12,9 @@ const WEB_API_URL = "backend.whalo8040.workers.dev"
 namespace esp8266 {
     // Flag to indicate whether the Web request was completed successfully.
     let webUpdated = false
+    // Latest command returned by receiveFromWebApp endpoint.
+    let webPin = "NONE"
+    let webAction = "NONE"
 
     /**
      * Return true if the latest Web request is successful.
@@ -23,6 +26,30 @@ namespace esp8266 {
     //% block="Web request successful"
     export function isWebUpdated(): boolean {
         return webUpdated
+    }
+
+    /**
+     * Return latest pin from Web poll command.
+     */
+    //% subcategory="Web"
+    //% weight=27
+    //% blockGap=8
+    //% blockId=esp8266_get_web_pin
+    //% block="Web pin"
+    export function getWebPin(): string {
+        return webPin
+    }
+
+    /**
+     * Return latest action from Web poll command.
+     */
+    //% subcategory="Web"
+    //% weight=26
+    //% blockGap=8
+    //% blockId=esp8266_get_web_action
+    //% block="Web action"
+    export function getWebAction(): string {
+        return webAction
     }
 
     /**
@@ -39,6 +66,8 @@ namespace esp8266 {
 
         // Reset the request successful flag.
         webUpdated = false
+        webPin = "NONE"
+        webAction = "NONE"
 
         // Make sure the WiFi is connected.
         if (isWifiConnected() == false) return command
@@ -75,6 +104,12 @@ namespace esp8266 {
         }
 
         sendCommand("AT+CIPCLOSE", "OK", 1000)
+
+        let commandArray = command.split("|")
+        if (commandArray.length >= 2) {
+            webPin = commandArray[0]
+            webAction = commandArray[1]
+        }
 
         webUpdated = true
         return command

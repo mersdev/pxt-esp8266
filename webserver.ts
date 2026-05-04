@@ -123,6 +123,7 @@ namespace esp8266 {
         let endpoint = "/api/microbit/receiveFromWebApp?pin=" + formatUrl(pin)
         let data = "GET " + endpoint + " HTTP/1.1\r\n"
         data += "Host: " + WEB_API_URL + "\r\n"
+        data += "Connection: close\r\n"
         data += "accept: text/plain\r\n"
         data += "x-api-key: " + apiKey + "\r\n"
         data += "\r\n"
@@ -151,9 +152,16 @@ namespace esp8266 {
         webLastDebugStep = "HTTP_200"
         webLastDebugCode = 8
 
-        // Collect remaining response chunks directly from UART.
+        // Collect remaining response chunks from parser buffer and UART.
         // This is more robust for fragmented +IPD frames.
         let rawResponse = ""
+        while (true) {
+            let buffered = getResponse("", 1)
+            if (buffered == "") {
+                break
+            }
+            rawResponse += buffered + "\r\n"
+        }
         let timestamp = input.runningTime()
         while (input.runningTime() - timestamp < 1200) {
             let chunk = serial.readString()
@@ -239,6 +247,7 @@ namespace esp8266 {
         let endpoint = "/api/microbit/sendToWebApp?pin=" + formatUrl(pin) + "&value=" + formatUrl(value)
         let data = "GET " + endpoint + " HTTP/1.1\r\n"
         data += "Host: " + WEB_API_URL + "\r\n"
+        data += "Connection: close\r\n"
         data += "x-api-key: " + apiKey + "\r\n"
         data += "\r\n"
 

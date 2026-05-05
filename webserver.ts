@@ -222,4 +222,47 @@ namespace esp8266 {
         webUpdated = true
         return
     }
+
+    /**
+     * Publish action to web app for a pin.
+     * @param apiKey API key for x-api-key header.
+     * @param pin Pin identifier. eg: motor1
+     * @param action Action we want to publish. eg: FORWARD
+     */
+    //% subcategory="Web"
+    //% weight=27
+    //% blockGap=8
+    //% blockId=esp8266_publish_action_to_web_app
+    //% block="Web publish action: API key %apiKey Pin %pin Action %action"
+    export function publishActionToWebApp(apiKey: string, pin: string, action: string) {
+        // Reset the request successful flag.
+        webUpdated = false
+
+        if (sendCommand("AT+CIPSTART=\"TCP\",\"" + WEB_API_URL + "\",80", "OK", 10000) == false) return
+
+        let endpoint = "/api/microbit/publishAction?pin=" + formatUrl(pin) + "&action=" + formatUrl(action)
+        let data = "GET " + endpoint + " HTTP/1.1\r\n"
+        data += "Host: " + WEB_API_URL + "\r\n"
+        data += "Connection: close\r\n"
+        data += "x-api-key: " + apiKey + "\r\n"
+        data += "\r\n"
+
+        sendCommand("AT+CIPSEND=" + (data.length + 2), "OK")
+        sendCommand(data)
+
+        if (getResponse("SEND OK", 5000) == "") {
+            sendCommand("AT+CIPCLOSE", "OK", 1000)
+            return
+        }
+
+        if (getResponse("HTTP/1.1", 5000).includes("200") == false) {
+            sendCommand("AT+CIPCLOSE", "OK", 1000)
+            return
+        }
+
+        sendCommand("AT+CIPCLOSE", "OK", 1000)
+
+        webUpdated = true
+        return
+    }
 }

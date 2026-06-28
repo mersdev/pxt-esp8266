@@ -111,6 +111,27 @@ if (!(esp8266.isInternetTimeUpdated())) {
 }
 ```
 
+## MakeCode Onboarding
+
+Use this repo as a MakeCode extension by publishing it on GitHub and importing that GitHub URL in the MakeCode editor.
+
+1. Push this repository to GitHub.
+2. Open [MakeCode micro:bit](https://makecode.microbit.org/).
+3. Click `Extensions`.
+4. Choose `Import URL`.
+5. Paste your GitHub repo URL, for example `https://github.com/mersdev/pxt-esp8266`.
+6. Test the blocks in a micro:bit project.
+7. When the extension is ready to share, create a release tag so MakeCode can pick up the published version.
+
+If you are working in a local PXT workspace, use:
+
+```bash
+pxt target microbit
+pxt serve
+```
+
+Then open the served editor, import the GitHub repo, and verify the blocks there before creating a release.
+
 ## License
 
 MIT

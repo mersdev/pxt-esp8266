@@ -43,7 +43,8 @@ The `Makefile` mirrors these commands via `make build`, `make test`, and `make d
 
 ## Release & Verification Workflow
 
-- For code changes, commit and push to GitHub before publishing a release.
+- For any repository change, finish by committing, pushing to GitHub, and creating a new release tag before handing it back.
+- Do not leave uncommitted changes in the working tree after a fix.
 - Create a new release or version tag after the change is ready to share.
 - Test the extension through the MakeCode flow described in the VS Code getting-started guide: use a local `pxt serve` session for development, then verify the published GitHub URL in a separate MakeCode project.
 - Keep `README.md` and `pxt.json` in sync with the released version.

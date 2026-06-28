@@ -51,7 +51,7 @@ namespace esp8266 {
         if (sendCommand("AT+CIPSTART=\"SSL\",\"" + VELOZZ_API_URL + "\",443", "OK", 10000) == false) return value
 
         // Construct the data to send.
-        let data = "GET /v1/microbit/pull?deviceId=" + formatUrl(apiKey) + " HTTP/1.1\r\n"
+        let data = "GET /v1/microbit/pull?deviceId=" + apiKey + " HTTP/1.1\r\n"
         data += "Host: " + VELOZZ_API_URL + "\r\n"
 
         // Send the data.
@@ -114,7 +114,7 @@ namespace esp8266 {
         if (sendCommand("AT+CIPSTART=\"SSL\",\"" + VELOZZ_API_URL + "\",443", "OK", 10000) == false) return
 
         // Construct the data to send.
-        let data = "GET /v1/microbit/send?deviceId=" + formatUrl(apiKey) + "&name=" + formatUrl(name) + "&value=" + formatUrl(value) + " HTTP/1.1\r\n"
+        let data = "GET /v1/microbit/send?deviceId=" + apiKey + "&name=" + formatUrl(name) + "&value=" + formatUrl(value) + " HTTP/1.1\r\n"
         data += "Host: " + VELOZZ_API_URL + "\r\n"
 
         // Send the data.

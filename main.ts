@@ -37,6 +37,7 @@ namespace esp8266 {
         rxData = ""
 
         // Send the command and end with "\r\n".
+        console.log("> " + command)
         serial.writeString(command + "\r\n")
         
         // Don't check if expected response is not specified.
@@ -108,6 +109,7 @@ namespace esp8266 {
                 // Check if expected response received.
                 if (rxData.slice(0, rxData.indexOf("\r\n")).includes(response)) {
                     responseLine = rxData.slice(0, rxData.indexOf("\r\n"))
+                    console.log("< " + responseLine)
 
                     // Trim the Rx data for next call.
                     rxData = rxData.slice(rxData.indexOf("\r\n") + 2)

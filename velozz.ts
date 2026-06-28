@@ -56,6 +56,7 @@ namespace esp8266 {
 
         // Send the data.
         sendCommand("AT+CIPSEND=" + (data.length + 2))
+        console.log("> " + data.slice(0, data.indexOf("\r\n")))
         sendCommand(data)
 
         // Return if "SEND OK" is not received.
@@ -118,6 +119,7 @@ namespace esp8266 {
 
         // Send the data.
         sendCommand("AT+CIPSEND=" + (data.length + 2))
+        console.log("> " + data.slice(0, data.indexOf("\r\n")))
         sendCommand(data)
 
         // Return if "SEND OK" is not received.

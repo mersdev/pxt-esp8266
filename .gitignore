@@ -10,3 +10,6 @@ _site
 .header.json
 .simstate.json
 .codegraph/
+.pxt/
+package.json
+package-lock.json

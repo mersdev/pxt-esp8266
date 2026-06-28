@@ -118,7 +118,7 @@ namespace esp8266 {
         data += "Host: " + VELOZZ_API_URL + "\r\n"
 
         // Send the data.
-        sendCommand("AT+CIPSEND=" + (data.length + 2))
+        sendCommand("AT+CIPSEND=" + (data.length + 2), "OK")
         console.log("> " + data.slice(0, data.indexOf("\r\n")))
         sendCommand(data)
 

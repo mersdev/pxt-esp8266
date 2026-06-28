@@ -7,6 +7,7 @@ const WIFI_PWD = "my_password"
 
 const THINGSPEAK_WRITE_API_KEY = "my_write_api_key"
 const BLYNK_TOKEN = "my_blynk_token"
+const VELOZZ_API_KEY = "my_api_key"
 
 const TIMEZONE = 8
 
@@ -55,6 +56,14 @@ if (!esp8266.isBlynkUpdated()) {
     basic.pause(1000)
 }
 
+// Send data to Velozz.
+// Show sad face if failed.
+esp8266.sendVelozz(VELOZZ_API_KEY, "light", "88")
+if (!esp8266.isVelozzUpdated()) {
+    basic.showIcon(IconNames.Sad)
+    basic.pause(1000)
+}
+
 // Initialize internet time.
 // Show sad face if failed.
 esp8266.initInternetTime(TIMEZONE)
@@ -72,4 +81,3 @@ if (!esp8266.isInternetTimeUpdated()) {
 } else {
     basic.showString(esp8266.getHour() + ":" + esp8266.getMinute() + ":" + esp8266.getSecond())
 }
-

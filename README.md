@@ -87,6 +87,31 @@ if (esp8266.isBlynkUpdated()) {
 }
 ```
 
+## Velozz
+
+Pull data from Velozz.
+
+```blocks
+let value = esp8266.pullVelozz("my_api_key")
+```
+
+Send data to Velozz.
+
+```blocks
+esp8266.sendVelozz("my_api_key", "light", "88")
+```
+
+Show happy face if Velozz was read/written successfully.<br>
+Show sad face if failed.
+
+```blocks
+if (esp8266.isVelozzUpdated()) {
+    basic.showIcon(IconNames.Happy)
+} else {
+    basic.showIcon(IconNames.Sad)
+}
+```
+
 ## Internet Time
 
 Initialize internet time to timezone +8.<br>

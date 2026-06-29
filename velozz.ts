@@ -23,7 +23,7 @@ namespace esp8266 {
      * Return true if Velozz data was updated successfully.
      */
     //% subcategory="Velozz"
-    //% weight=34
+    //% weight=40
     //% blockGap=8
     //% blockId=esp8266_is_velozz_data_updated
     //% block="Velozz updated"
@@ -37,7 +37,7 @@ namespace esp8266 {
      * Return last Velozz debug message.
      */
     //% subcategory="Velozz"
-    //% weight=33
+    //% weight=39
     //% blockGap=8
     //% blockId=esp8266_velozz_debug
     //% block="Velozz debug"
@@ -48,11 +48,49 @@ namespace esp8266 {
 
 
     /**
+     * Prepare ESP8266 SSL settings before connecting to Cloudflare Worker.
+     */
+    function prepareVelozzSsl() {
+        // Force single connection mode.
+        sendCommand("AT+CIPMUX=0", "OK", 1000)
+
+        // Disable transparent mode.
+        sendCommand("AT+CIPMODE=0", "OK", 1000)
+
+        // Close previous connection if any.
+        sendCommand("AT+CIPCLOSE", "OK", 1000)
+
+        // Disable certificate verification.
+        // Some ESP8266 firmware may not support this command.
+        // It is okay if this command fails.
+        sendCommand("AT+CIPSSLCCONF=0", "OK", 2000)
+
+        // Set SNI for Cloudflare / workers.dev.
+        // Some ESP8266 firmware may not support this command.
+        // It is okay if this command fails, but if supported, it helps SSL connection.
+        sendCommand("AT+CIPSSLCSNI=\"" + VELOZZ_API_URL + "\"", "OK", 2000)
+    }
+
+
+
+    /**
+     * Open SSL connection to Velozz backend.
+     */
+    function openVelozzConnection(): boolean {
+        prepareVelozzSsl()
+
+        // SSL handshake may be slow, so use 30 seconds.
+        return sendCommand("AT+CIPSTART=\"SSL\",\"" + VELOZZ_API_URL + "\",443", "OK", 30000)
+    }
+
+
+
+    /**
      * Test whether ESP8266 can open SSL connection to Velozz backend.
      * This only checks connection to backend host, not API key.
      */
     //% subcategory="Velozz"
-    //% weight=32
+    //% weight=38
     //% blockGap=8
     //% blockId=esp8266_test_velozz_connection
     //% block="test Velozz backend connection"
@@ -60,14 +98,12 @@ namespace esp8266 {
         velozzUpdated = false
         velozzDebug = "START_CONNECTION_TEST"
 
-        // Make sure the WiFi is connected.
         if (isWifiConnected() == false) {
             velozzDebug = "ERR_WIFI_NOT_CONNECTED"
             return false
         }
 
-        // Same style as Cytron Telegram.
-        if (sendCommand("AT+CIPSTART=\"SSL\",\"" + VELOZZ_API_URL + "\",443", "OK", 10000) == false) {
+        if (openVelozzConnection() == false) {
             velozzDebug = "ERR_SSL_CONNECT_FAILED"
             return false
         }
@@ -87,7 +123,7 @@ namespace esp8266 {
      * @param apiKey Device ID / API key.
      */
     //% subcategory="Velozz"
-    //% weight=31
+    //% weight=37
     //% blockGap=8
     //% blockId=esp8266_test_velozz_backend
     //% block="test Velozz backend: API Key %apiKey"
@@ -95,14 +131,12 @@ namespace esp8266 {
         velozzUpdated = false
         velozzDebug = "START_BACKEND_TEST"
 
-        // Make sure the WiFi is connected.
         if (isWifiConnected() == false) {
             velozzDebug = "ERR_WIFI_NOT_CONNECTED"
             return false
         }
 
-        // Same style as Cytron Telegram.
-        if (sendCommand("AT+CIPSTART=\"SSL\",\"" + VELOZZ_API_URL + "\",443", "OK", 10000) == false) {
+        if (openVelozzConnection() == false) {
             velozzDebug = "ERR_SSL_CONNECT_FAILED"
             return false
         }
@@ -116,7 +150,6 @@ namespace esp8266 {
         sendCommand("AT+CIPSEND=" + (data.length + 2))
         sendCommand(data)
 
-        // Check whether request was sent.
         if (getResponse("SEND OK", 5000) == "") {
             sendCommand("AT+CIPCLOSE", "OK", 1000)
             velozzDebug = "ERR_NO_SEND_OK"
@@ -137,7 +170,7 @@ namespace esp8266 {
 
         // Fallback for old backend response:
         // OK|LEFT=...
-        response = getResponse("OK|LEFT", 2000)
+        response = getResponse("OK|LEFT", 3000)
 
         if (response != "") {
             sendCommand("AT+CIPCLOSE", "OK", 1000)
@@ -156,11 +189,11 @@ namespace esp8266 {
 
 
     /**
-     * Pull data from Velozz and return the response body/string.
+     * Pull data from Velozz and return the response string.
      * @param apiKey Device ID / API key.
      */
     //% subcategory="Velozz"
-    //% weight=30
+    //% weight=36
     //% blockGap=8
     //% blockId=esp8266_pull_velozz
     //% block="pull Velozz: API Key %apiKey"
@@ -170,14 +203,12 @@ namespace esp8266 {
         velozzUpdated = false
         velozzDebug = "START_PULL"
 
-        // Make sure the WiFi is connected.
         if (isWifiConnected() == false) {
             velozzDebug = "ERR_WIFI_NOT_CONNECTED"
             return value
         }
 
-        // Same style as Cytron Telegram.
-        if (sendCommand("AT+CIPSTART=\"SSL\",\"" + VELOZZ_API_URL + "\",443", "OK", 10000) == false) {
+        if (openVelozzConnection() == false) {
             velozzDebug = "ERR_SSL_CONNECT_FAILED"
             return value
         }
@@ -191,7 +222,6 @@ namespace esp8266 {
         sendCommand("AT+CIPSEND=" + (data.length + 2))
         sendCommand(data)
 
-        // Return if "SEND OK" is not received.
         if (getResponse("SEND OK", 5000) == "") {
             sendCommand("AT+CIPCLOSE", "OK", 1000)
             velozzDebug = "ERR_NO_SEND_OK"
@@ -212,7 +242,7 @@ namespace esp8266 {
 
         // Fallback for old backend response:
         // NONE|POLL=...
-        response = getResponse("NONE|", 2000)
+        response = getResponse("NONE|", 3000)
 
         if (response != "") {
             sendCommand("AT+CIPCLOSE", "OK", 1000)
@@ -224,7 +254,7 @@ namespace esp8266 {
 
         // Fallback for old backend command response:
         // CMD|cmdId=...
-        response = getResponse("CMD|", 2000)
+        response = getResponse("CMD|", 3000)
 
         if (response != "") {
             sendCommand("AT+CIPCLOSE", "OK", 1000)
@@ -249,7 +279,7 @@ namespace esp8266 {
      * @param value Value to send.
      */
     //% subcategory="Velozz"
-    //% weight=29
+    //% weight=35
     //% blockGap=8
     //% blockId=esp8266_send_velozz
     //% block="send to Velozz: API Key %apiKey Name %name Value %value"
@@ -257,14 +287,12 @@ namespace esp8266 {
         velozzUpdated = false
         velozzDebug = "START_SEND"
 
-        // Make sure the WiFi is connected.
         if (isWifiConnected() == false) {
             velozzDebug = "ERR_WIFI_NOT_CONNECTED"
             return
         }
 
-        // Same style as Cytron Telegram.
-        if (sendCommand("AT+CIPSTART=\"SSL\",\"" + VELOZZ_API_URL + "\",443", "OK", 10000) == false) {
+        if (openVelozzConnection() == false) {
             velozzDebug = "ERR_SSL_CONNECT_FAILED"
             return
         }
@@ -281,7 +309,6 @@ namespace esp8266 {
         sendCommand("AT+CIPSEND=" + (data.length + 2))
         sendCommand(data)
 
-        // Return if "SEND OK" is not received.
         if (getResponse("SEND OK", 5000) == "") {
             sendCommand("AT+CIPCLOSE", "OK", 1000)
             velozzDebug = "ERR_NO_SEND_OK"
@@ -302,7 +329,7 @@ namespace esp8266 {
 
         // Fallback for old backend response:
         // OK|LEFT=...
-        response = getResponse("OK|LEFT", 2000)
+        response = getResponse("OK|LEFT", 3000)
 
         if (response != "") {
             sendCommand("AT+CIPCLOSE", "OK", 1000)
@@ -326,7 +353,7 @@ namespace esp8266 {
      * @param cmdId Command ID from pull response.
      */
     //% subcategory="Velozz"
-    //% weight=28
+    //% weight=34
     //% blockGap=8
     //% blockId=esp8266_ack_velozz
     //% block="ack Velozz: API Key %apiKey Command ID %cmdId"
@@ -334,14 +361,12 @@ namespace esp8266 {
         velozzUpdated = false
         velozzDebug = "START_ACK"
 
-        // Make sure the WiFi is connected.
         if (isWifiConnected() == false) {
             velozzDebug = "ERR_WIFI_NOT_CONNECTED"
             return
         }
 
-        // Same style as Cytron Telegram.
-        if (sendCommand("AT+CIPSTART=\"SSL\",\"" + VELOZZ_API_URL + "\",443", "OK", 10000) == false) {
+        if (openVelozzConnection() == false) {
             velozzDebug = "ERR_SSL_CONNECT_FAILED"
             return
         }
@@ -357,7 +382,6 @@ namespace esp8266 {
         sendCommand("AT+CIPSEND=" + (data.length + 2))
         sendCommand(data)
 
-        // Return if "SEND OK" is not received.
         if (getResponse("SEND OK", 5000) == "") {
             sendCommand("AT+CIPCLOSE", "OK", 1000)
             velozzDebug = "ERR_NO_SEND_OK"
@@ -378,7 +402,7 @@ namespace esp8266 {
 
         // Fallback for old backend response:
         // OK|LEFT=...
-        response = getResponse("OK|LEFT", 2000)
+        response = getResponse("OK|LEFT", 3000)
 
         if (response != "") {
             sendCommand("AT+CIPCLOSE", "OK", 1000)

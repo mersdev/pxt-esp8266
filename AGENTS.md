@@ -46,13 +46,14 @@ The `Makefile` mirrors these commands via `make build`, `make test`, and `make d
 - For any repository change, always follow the same release flow before handing the work back.
 - Do not leave uncommitted changes in the working tree after a fix.
 - Keep `README.md` and `pxt.json` in sync with the released version.
+- Only push release commits, tags, and GitHub releases to `https://github.com/mersdev/pxt-esp8266`.
 - Release steps:
   1. Run `pxt test` and make sure the package builds cleanly.
   2. Run `pxt bump --nopr` from the repo root to create the next package version commit.
   3. Accept the suggested version number unless a different one is required.
-  4. Push the new commit and the matching `vX.Y.Z` tag to GitHub.
+  4. Push the new commit and the matching `vX.Y.Z` tag to `https://github.com/mersdev/pxt-esp8266`.
   5. Create a GitHub release for the same tag.
-  6. Verify the extension in MakeCode using the published GitHub URL, then update any project that still shows an older version such as `2.1.12`.
+  6. Verify the extension in MakeCode using the published GitHub URL for `https://github.com/mersdev/pxt-esp8266`, then update any project that still shows an older version such as `2.1.12`.
 
 When a change is committed, the release step is not complete until the GitHub tag and release exist.
 

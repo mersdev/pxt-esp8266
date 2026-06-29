@@ -94,7 +94,7 @@ namespace esp8266 {
     //% blockGap=8
     //% blockId=esp8266_test_velozz_connection
     //% block="test Velozz backend connection"
-    export function testVelozzConnection(): boolean {
+    export function testVelozzConnection1(): boolean {
         velozzUpdated = false
         velozzDebug = "START_CONNECTION_TEST"
 

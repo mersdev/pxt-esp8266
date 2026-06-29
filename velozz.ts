@@ -28,15 +28,15 @@ namespace esp8266 {
      * Fields available from the last Velozz response.
      */
     export enum VelozzLastField {
-        //% block="ok"
+        //% block="OK status"
         Ok,
-        //% block="type"
+        //% block="response type"
         Type,
         //% block="command ID"
         CommandId,
-        //% block="name"
+        //% block="field name"
         Name,
-        //% block="value"
+        //% block="field value"
         Value
     }
 
@@ -49,7 +49,7 @@ namespace esp8266 {
     //% weight=40
     //% blockGap=8
     //% blockId=esp8266_is_velozz_data_updated
-    //% block="Velozz updated"
+    //% block="Velozz request successful"
     export function isVelozzUpdated(): boolean {
         return velozzUpdated
     }
@@ -63,7 +63,7 @@ namespace esp8266 {
     //% weight=39
     //% blockGap=8
     //% blockId=esp8266_velozz_debug
-    //% block="Velozz debug"
+    //% block="Velozz debug message"
     export function getVelozzDebug(): string {
         return velozzDebug
     }
@@ -121,7 +121,7 @@ namespace esp8266 {
     //% weight=35
     //% blockGap=8
     //% blockId=esp8266_velozz_last_field
-    //% block="Velozz last field %field"
+    //% block="last Velozz response field %field"
     export function getVelozzLastField(field: VelozzLastField): string {
         if (field == VelozzLastField.Ok) return velozzLastOk
         if (field == VelozzLastField.Type) return velozzLastType
@@ -309,7 +309,7 @@ namespace esp8266 {
     //% weight=38
     //% blockGap=8
     //% blockId=esp8266_test_velozz_connection
-    //% block="test Velozz backend connection"
+    //% block="check Velozz backend connection"
     export function testVelozzConnection1(): boolean {
         velozzUpdated = false
         clearVelozzLastFields()
@@ -343,7 +343,7 @@ namespace esp8266 {
     //% weight=37
     //% blockGap=8
     //% blockId=esp8266_test_velozz_backend
-    //% block="test Velozz backend: API Key %apiKey"
+    //% block="check Velozz backend: API key %apiKey"
     export function testVelozzBackend(apiKey: string): boolean {
         velozzUpdated = false
         clearVelozzLastFields()
@@ -393,7 +393,7 @@ namespace esp8266 {
     //% weight=36
     //% blockGap=8
     //% blockId=esp8266_pull_velozz
-    //% block="pull Velozz: API Key %apiKey"
+    //% block="pull data from Velozz: API key %apiKey"
     export function pullVelozz(apiKey: string) {
 
         velozzUpdated = false
@@ -445,7 +445,7 @@ namespace esp8266 {
     //% weight=35
     //% blockGap=8
     //% blockId=esp8266_send_velozz
-    //% block="send to Velozz: API Key %apiKey Name %name Value %value"
+    //% block="send data to Velozz: API key %apiKey Field name %name Field value %value"
     export function sendVelozz(apiKey: string, name: string, value: string) {
         velozzUpdated = false
         clearVelozzLastFields()
@@ -498,7 +498,7 @@ namespace esp8266 {
     //% weight=34
     //% blockGap=8
     //% blockId=esp8266_ack_velozz
-    //% block="ack Velozz: API Key %apiKey Command ID %cmdId"
+    //% block="acknowledge Velozz command: API key %apiKey Command ID %cmdId"
     export function ackVelozz(apiKey: string, cmdId: string) {
         velozzUpdated = false
         clearVelozzLastFields()

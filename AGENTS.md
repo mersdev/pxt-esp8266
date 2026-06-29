@@ -43,11 +43,18 @@ The `Makefile` mirrors these commands via `make build`, `make test`, and `make d
 
 ## Release & Verification Workflow
 
-- For any repository change, finish by committing, pushing to GitHub, and creating a new release tag before handing it back.
+- For any repository change, always follow the same release flow before handing the work back.
 - Do not leave uncommitted changes in the working tree after a fix.
-- Create a new release or version tag after the change is ready to share.
-- Test the extension through the MakeCode flow described in the VS Code getting-started guide: use a local `pxt serve` session for development, then verify the published GitHub URL in a separate MakeCode project.
 - Keep `README.md` and `pxt.json` in sync with the released version.
+- Release steps:
+  1. Run `pxt test` and make sure the package builds cleanly.
+  2. Run `pxt bump --nopr` from the repo root to create the next package version commit.
+  3. Accept the suggested version number unless a different one is required.
+  4. Push the new commit and the matching `vX.Y.Z` tag to GitHub.
+  5. Create a GitHub release for the same tag.
+  6. Verify the extension in MakeCode using the published GitHub URL, then update any project that still shows an older version such as `2.1.12`.
+
+When a change is committed, the release step is not complete until the GitHub tag and release exist.
 
 ## Security & Configuration Tips
 

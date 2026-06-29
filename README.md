@@ -92,7 +92,8 @@ if (esp8266.isBlynkUpdated()) {
 Pull data from Velozz.
 
 ```blocks
-let value = esp8266.pullVelozz("my_api_key")
+esp8266.pullVelozz("my_api_key")
+let value = esp8266.getVelozzLastField(esp8266.VelozzLastField.Value)
 ```
 
 Send data to Velozz.

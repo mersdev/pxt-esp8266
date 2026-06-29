@@ -74,10 +74,7 @@ namespace esp8266 {
      * Return last Velozz response type.
      */
     //% subcategory="Velozz"
-    //% weight=38
-    //% blockGap=8
-    //% blockId=esp8266_velozz_last_type
-    //% block="Velozz last type"
+    //% blockHidden=true
     export function getVelozzLastType(): string {
         return velozzLastType
     }
@@ -88,10 +85,7 @@ namespace esp8266 {
      * Return last Velozz command ID.
      */
     //% subcategory="Velozz"
-    //% weight=37
-    //% blockGap=8
-    //% blockId=esp8266_velozz_last_cmd_id
-    //% block="Velozz last command ID"
+    //% blockHidden=true
     export function getVelozzLastCommandId(): string {
         return velozzLastCommandId
     }
@@ -102,10 +96,7 @@ namespace esp8266 {
      * Return last Velozz command/event name.
      */
     //% subcategory="Velozz"
-    //% weight=36
-    //% blockGap=8
-    //% blockId=esp8266_velozz_last_name
-    //% block="Velozz last name"
+    //% blockHidden=true
     export function getVelozzLastName(): string {
         return velozzLastName
     }
@@ -116,10 +107,7 @@ namespace esp8266 {
      * Return last Velozz command/event value.
      */
     //% subcategory="Velozz"
-    //% weight=35
-    //% blockGap=8
-    //% blockId=esp8266_velozz_last_value
-    //% block="Velozz last value"
+    //% blockHidden=true
     export function getVelozzLastValue(): string {
         return velozzLastValue
     }
@@ -406,8 +394,7 @@ namespace esp8266 {
     //% blockGap=8
     //% blockId=esp8266_pull_velozz
     //% block="pull Velozz: API Key %apiKey"
-    export function pullVelozz(apiKey: string): string {
-        let value = ""
+    export function pullVelozz(apiKey: string) {
 
         velozzUpdated = false
         clearVelozzLastFields()
@@ -415,12 +402,12 @@ namespace esp8266 {
 
         if (isWifiConnected() == false) {
             setVelozzDebug("ERR_WIFI_NOT_CONNECTED")
-            return value
+            return
         }
 
         if (openVelozzConnection() == false) {
             setVelozzDebug("ERR_SSL_CONNECT_FAILED")
-            return value
+            return
         }
 
         let data = "GET /v1/microbit/pull?deviceId=" + apiKey + " HTTP/1.1\r\n"
@@ -429,7 +416,7 @@ namespace esp8266 {
 
         if (sendVelozzRequest(data) == false) {
             sendCommand("AT+CIPCLOSE", "OK", 1000)
-            return value
+            return
         }
 
         let response = readVelozzResponse("OK_PULL_RESPONSE", "ERR_NO_PULL_RESPONSE")
@@ -438,12 +425,12 @@ namespace esp8266 {
         if (response.includes("\"ok\":true")) {
             sendCommand("AT+CIPCLOSE", "OK", 1000)
             velozzUpdated = true
-            return response
+            return
         }
 
         sendCommand("AT+CIPCLOSE", "OK", 1000)
         setVelozzDebug("ERR_PULL_RESPONSE", response)
-        return value
+        return
     }
 
 

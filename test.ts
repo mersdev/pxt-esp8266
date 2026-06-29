@@ -56,13 +56,10 @@ if (!esp8266.isBlynkUpdated()) {
     basic.pause(1000)
 }
 
-// Send data to Velozz.
-// Show sad face if failed.
-esp8266.sendVelozz(VELOZZ_API_KEY, "light", "88")
-if (!esp8266.isVelozzUpdated()) {
-    basic.showIcon(IconNames.Sad)
-    basic.pause(1000)
-}
+// Pull data from Velozz and show the last value.
+esp8266.pullVelozz(VELOZZ_API_KEY)
+basic.showString(esp8266.getVelozzLastField(esp8266.VelozzLastField.Value))
+basic.pause(1000)
 
 // Initialize internet time.
 // Show sad face if failed.

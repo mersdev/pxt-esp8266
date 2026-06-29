@@ -47,6 +47,7 @@ The `Makefile` mirrors these commands via `make build`, `make test`, and `make d
 - Do not leave uncommitted changes in the working tree after a fix.
 - Keep `README.md` and `pxt.json` in sync with the released version.
 - Only push release commits, tags, and GitHub releases to `https://github.com/mersdev/pxt-esp8266`.
+- The release commit must come from `pxt bump --nopr`; do not hand-edit the version.
 - Release steps:
   1. Run `pxt test` and make sure the package builds cleanly.
   2. Run `pxt bump --nopr` from the repo root to create the next package version commit.

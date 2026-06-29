@@ -12,9 +12,6 @@ const VELOZZ_API_URL = "microbit-backend.velozz.workers.dev"
 namespace esp8266 {
     // Flag to indicate whether the Velozz request completed successfully.
     let velozzUpdated = false
-
-
-
     /**
      * Return true if Velozz data was updated successfully.
      */
@@ -25,6 +22,22 @@ namespace esp8266 {
     //% block="Velozz updated"
     export function isVelozzUpdated(): boolean {
         return velozzUpdated
+    }
+
+    /**
+     * Open SSL connection to Velozz.
+     */
+    function connectVelozz(): boolean {
+        // Disable SSL certificate verification.
+        // This is needed because ESP8266 usually does not have the CA cert loaded.
+        sendCommand("AT+CIPSSLCCONF=0", "OK", 2000)
+
+        // Set SNI for Cloudflare / workers.dev HTTPS.
+        // Important for HTTPS backend such as *.workers.dev.
+        sendCommand("AT+CIPSSLCSNI=\"" + VELOZZ_API_URL + "\"", "OK", 2000)
+
+        // SSL handshake can be slow, so use longer timeout.
+        return sendCommand("AT+CIPSTART=\"SSL\",\"" + VELOZZ_API_URL + "\",443", "OK", 30000)
     }
 
 
@@ -48,14 +61,18 @@ namespace esp8266 {
         if (isWifiConnected() == false) return value
 
         // Connect to Velozz. Return if failed.
-        if (sendCommand("AT+CIPSTART=\"SSL\",\"" + VELOZZ_API_URL + "\",443", "OK", 10000) == false) return value
+        if (connectVelozz() == false) return value
 
-        // Construct the data to send.
+        // Construct HTTP GET request.
+        // IMPORTANT:
+        // sendCommand(data) will add the final \r\n.
+        // Therefore AT+CIPSEND uses data.length + 2.
         let data = "GET /v1/microbit/pull?deviceId=" + apiKey + " HTTP/1.1\r\n"
         data += "Host: " + VELOZZ_API_URL + "\r\n"
+        data += "Connection: close\r\n"
 
-        // Send the data.
-        sendCommand("AT+CIPSEND=" + (data.length + 2), "OK")
+        // Send HTTP request.
+        sendCommand("AT+CIPSEND=" + (data.length + 2), "OK", 5000)
         console.log("> " + data.slice(0, data.indexOf("\r\n")))
         sendCommand(data)
 
@@ -65,13 +82,17 @@ namespace esp8266 {
             return value
         }
 
+        // Read HTTP status.
+        let status = getResponse("HTTP/", 8000)
+
         // Make sure Velozz response is 200.
-        if (getResponse("HTTP/1.1", 5000).includes("200 OK")) {
+        if (status.includes("200")) {
 
             // Get the response body.
-            // It should be the last line in the response.
+            // It should be the last non-empty line in the response.
             while (true) {
-                let response = getResponse("", 200)
+                let response = getResponse("", 300)
+
                 if (response == "") {
                     break
                 } else {
@@ -111,14 +132,18 @@ namespace esp8266 {
         if (isWifiConnected() == false) return
 
         // Connect to Velozz. Return if failed.
-        if (sendCommand("AT+CIPSTART=\"SSL\",\"" + VELOZZ_API_URL + "\",443", "OK", 10000) == false) return
+        if (connectVelozz() == false) return
 
-        // Construct the data to send.
+        // Construct HTTP GET request.
+        // IMPORTANT:
+        // sendCommand(data) will add the final \r\n.
+        // Therefore AT+CIPSEND uses data.length + 2.
         let data = "GET /v1/microbit/send?deviceId=" + apiKey + "&name=" + formatUrl(name) + "&value=" + formatUrl(value) + " HTTP/1.1\r\n"
         data += "Host: " + VELOZZ_API_URL + "\r\n"
+        data += "Connection: close\r\n"
 
-        // Send the data.
-        sendCommand("AT+CIPSEND=" + (data.length + 2), "OK")
+        // Send HTTP request.
+        sendCommand("AT+CIPSEND=" + (data.length + 2), "OK", 5000)
         console.log("> " + data.slice(0, data.indexOf("\r\n")))
         sendCommand(data)
 
@@ -128,13 +153,17 @@ namespace esp8266 {
             return
         }
 
+        // Read HTTP status.
+        let status = getResponse("HTTP/", 8000)
+
         // Validate the response from Velozz.
-        if (getResponse("HTTP/1.1", 5000).includes("200 OK")) {
+        if (status.includes("200")) {
             velozzUpdated = true
         }
 
         // Close the connection.
         sendCommand("AT+CIPCLOSE", "OK", 1000)
+
         return
     }
 }

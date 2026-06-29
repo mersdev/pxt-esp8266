@@ -230,8 +230,16 @@ namespace esp8266 {
             let line = getResponse("", 300)
             if (line == "") {
                 break
-            } else {
-                body = line
+            }
+
+            let jsonStart = line.indexOf("{")
+            if (jsonStart >= 0) {
+                body = line.slice(jsonStart)
+                continue
+            }
+
+            if (line == "CLOSED") {
+                continue
             }
         }
 

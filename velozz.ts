@@ -17,6 +17,12 @@ namespace esp8266 {
     // Debug message for troubleshooting.
     let velozzDebug = "NO_DEBUG_YET"
 
+    // Last parsed Velozz response fields.
+    let velozzLastType = ""
+    let velozzLastCommandId = ""
+    let velozzLastName = ""
+    let velozzLastValue = ""
+
 
 
     /**
@@ -47,12 +53,100 @@ namespace esp8266 {
 
 
 
+    /**
+     * Return last Velozz response type.
+     */
+    //% subcategory="Velozz"
+    //% weight=38
+    //% blockGap=8
+    //% blockId=esp8266_velozz_last_type
+    //% block="Velozz last type"
+    export function getVelozzLastType(): string {
+        return velozzLastType
+    }
+
+
+
+    /**
+     * Return last Velozz command ID.
+     */
+    //% subcategory="Velozz"
+    //% weight=37
+    //% blockGap=8
+    //% blockId=esp8266_velozz_last_cmd_id
+    //% block="Velozz last command ID"
+    export function getVelozzLastCommandId(): string {
+        return velozzLastCommandId
+    }
+
+
+
+    /**
+     * Return last Velozz command/event name.
+     */
+    //% subcategory="Velozz"
+    //% weight=36
+    //% blockGap=8
+    //% blockId=esp8266_velozz_last_name
+    //% block="Velozz last name"
+    export function getVelozzLastName(): string {
+        return velozzLastName
+    }
+
+
+
+    /**
+     * Return last Velozz command/event value.
+     */
+    //% subcategory="Velozz"
+    //% weight=35
+    //% blockGap=8
+    //% blockId=esp8266_velozz_last_value
+    //% block="Velozz last value"
+    export function getVelozzLastValue(): string {
+        return velozzLastValue
+    }
+
+
+
     function setVelozzDebug(status: string, detail: string = null) {
         if ((detail == null) || (detail == "")) {
             velozzDebug = status
         } else {
             velozzDebug = status + "|" + detail
         }
+    }
+
+
+
+    function clearVelozzLastFields() {
+        velozzLastType = ""
+        velozzLastCommandId = ""
+        velozzLastName = ""
+        velozzLastValue = ""
+    }
+
+
+
+    function extractJsonStringField(body: string, field: string): string {
+        let pattern = "\"" + field + "\":\""
+        let start = body.indexOf(pattern)
+        if (start < 0) return ""
+
+        start += pattern.length
+        let end = body.indexOf("\"", start)
+        if (end < 0) return ""
+
+        return body.slice(start, end)
+    }
+
+
+
+    function parseVelozzResponseFields(body: string) {
+        velozzLastType = extractJsonStringField(body, "type")
+        velozzLastCommandId = extractJsonStringField(body, "cmdId")
+        velozzLastName = extractJsonStringField(body, "name")
+        velozzLastValue = extractJsonStringField(body, "value")
     }
 
 
@@ -163,6 +257,7 @@ namespace esp8266 {
     //% block="test Velozz backend connection"
     export function testVelozzConnection1(): boolean {
         velozzUpdated = false
+        clearVelozzLastFields()
         setVelozzDebug("START_CONNECTION_TEST")
 
         if (isWifiConnected() == false) {
@@ -196,6 +291,7 @@ namespace esp8266 {
     //% block="test Velozz backend: API Key %apiKey"
     export function testVelozzBackend(apiKey: string): boolean {
         velozzUpdated = false
+        clearVelozzLastFields()
         setVelozzDebug("START_BACKEND_TEST")
 
         if (isWifiConnected() == false) {
@@ -218,6 +314,7 @@ namespace esp8266 {
         }
 
         let response = readVelozzResponse("OK_BACKEND_RESPONSE", "ERR_NO_BACKEND_RESPONSE")
+        parseVelozzResponseFields(response)
 
         if (response.includes("\"ok\":true")) {
             sendCommand("AT+CIPCLOSE", "OK", 1000)
@@ -246,6 +343,7 @@ namespace esp8266 {
         let value = ""
 
         velozzUpdated = false
+        clearVelozzLastFields()
         setVelozzDebug("START_PULL")
 
         if (isWifiConnected() == false) {
@@ -268,6 +366,7 @@ namespace esp8266 {
         }
 
         let response = readVelozzResponse("OK_PULL_RESPONSE", "ERR_NO_PULL_RESPONSE")
+        parseVelozzResponseFields(response)
 
         if (response.includes("\"ok\":true")) {
             sendCommand("AT+CIPCLOSE", "OK", 1000)
@@ -295,6 +394,7 @@ namespace esp8266 {
     //% block="send to Velozz: API Key %apiKey Name %name Value %value"
     export function sendVelozz(apiKey: string, name: string, value: string) {
         velozzUpdated = false
+        clearVelozzLastFields()
         setVelozzDebug("START_SEND")
 
         if (isWifiConnected() == false) {
@@ -320,6 +420,7 @@ namespace esp8266 {
         }
 
         let response = readVelozzResponse("OK_SEND_RESPONSE", "ERR_NO_SEND_RESPONSE")
+        parseVelozzResponseFields(response)
 
         if (response.includes("\"ok\":true")) {
             sendCommand("AT+CIPCLOSE", "OK", 1000)
@@ -346,6 +447,7 @@ namespace esp8266 {
     //% block="ack Velozz: API Key %apiKey Command ID %cmdId"
     export function ackVelozz(apiKey: string, cmdId: string) {
         velozzUpdated = false
+        clearVelozzLastFields()
         setVelozzDebug("START_ACK")
 
         if (isWifiConnected() == false) {
@@ -370,6 +472,7 @@ namespace esp8266 {
         }
 
         let response = readVelozzResponse("OK_ACK_RESPONSE", "ERR_NO_ACK_RESPONSE")
+        parseVelozzResponseFields(response)
 
         if (response.includes("\"ok\":true")) {
             sendCommand("AT+CIPCLOSE", "OK", 1000)

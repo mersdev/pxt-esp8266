@@ -18,10 +18,27 @@ namespace esp8266 {
     let velozzDebug = "NO_DEBUG_YET"
 
     // Last parsed Velozz response fields.
+    let velozzLastOk = ""
     let velozzLastType = ""
     let velozzLastCommandId = ""
     let velozzLastName = ""
     let velozzLastValue = ""
+
+    /**
+     * Fields available from the last Velozz response.
+     */
+    export enum VelozzLastField {
+        //% block="ok"
+        Ok,
+        //% block="type"
+        Type,
+        //% block="command ID"
+        CommandId,
+        //% block="name"
+        Name,
+        //% block="value"
+        Value
+    }
 
 
 
@@ -109,6 +126,25 @@ namespace esp8266 {
 
 
 
+    /**
+     * Return a field from the last Velozz response.
+     */
+    //% subcategory="Velozz"
+    //% weight=35
+    //% blockGap=8
+    //% blockId=esp8266_velozz_last_field
+    //% block="Velozz last field %field"
+    export function getVelozzLastField(field: VelozzLastField): string {
+        if (field == VelozzLastField.Ok) return velozzLastOk
+        if (field == VelozzLastField.Type) return velozzLastType
+        if (field == VelozzLastField.CommandId) return velozzLastCommandId
+        if (field == VelozzLastField.Name) return velozzLastName
+        if (field == VelozzLastField.Value) return velozzLastValue
+        return ""
+    }
+
+
+
     function setVelozzDebug(status: string, detail: string = null) {
         if ((detail == null) || (detail == "")) {
             velozzDebug = status
@@ -120,6 +156,7 @@ namespace esp8266 {
 
 
     function clearVelozzLastFields() {
+        velozzLastOk = ""
         velozzLastType = ""
         velozzLastCommandId = ""
         velozzLastName = ""
@@ -128,25 +165,47 @@ namespace esp8266 {
 
 
 
-    function extractJsonStringField(body: string, field: string): string {
-        let pattern = "\"" + field + "\":\""
+    function extractJsonValueField(body: string, field: string): string {
+        let pattern = "\"" + field + "\":"
         let start = body.indexOf(pattern)
         if (start < 0) return ""
 
         start += pattern.length
-        let end = body.indexOf("\"", start)
-        if (end < 0) return ""
 
-        return body.slice(start, end)
+        while (start < body.length && body.charAt(start) == " ") {
+            start++
+        }
+
+        if (start >= body.length) return ""
+
+        if (body.charAt(start) == "\"") {
+            start++
+            let end = start
+            while (end < body.length) {
+                if (body.charAt(end) == "\"" && body.charAt(end - 1) != "\\") {
+                    return body.slice(start, end)
+                }
+                end++
+            }
+            return ""
+        }
+
+        let end = start
+        while (end < body.length && body.charAt(end) != "," && body.charAt(end) != "}") {
+            end++
+        }
+
+        return body.slice(start, end).trim()
     }
 
 
 
     function parseVelozzResponseFields(body: string) {
-        velozzLastType = extractJsonStringField(body, "type")
-        velozzLastCommandId = extractJsonStringField(body, "cmdId")
-        velozzLastName = extractJsonStringField(body, "name")
-        velozzLastValue = extractJsonStringField(body, "value")
+        velozzLastOk = extractJsonValueField(body, "ok")
+        velozzLastType = extractJsonValueField(body, "type")
+        velozzLastCommandId = extractJsonValueField(body, "cmdId")
+        velozzLastName = extractJsonValueField(body, "name")
+        velozzLastValue = extractJsonValueField(body, "value")
     }
 
 

@@ -7,16 +7,23 @@
  *******************************************************************************/
 
 // Velozz API url.
+// IMPORTANT: Do not put https:// here.
 const VELOZZ_API_URL = "microbit-backend.velozz.workers.dev"
 
 namespace esp8266 {
     // Flag to indicate whether the Velozz request completed successfully.
     let velozzUpdated = false
+
+    // Debug message for troubleshooting.
+    let velozzDebug = ""
+
+
+
     /**
      * Return true if Velozz data was updated successfully.
      */
     //% subcategory="Velozz"
-    //% weight=30
+    //% weight=34
     //% blockGap=8
     //% blockId=esp8266_is_velozz_data_updated
     //% block="Velozz updated"
@@ -24,89 +31,212 @@ namespace esp8266 {
         return velozzUpdated
     }
 
+
+
     /**
-     * Open SSL connection to Velozz.
+     * Return last Velozz debug message.
      */
-    function connectVelozz(): boolean {
-        // Disable SSL certificate verification.
-        // This is needed because ESP8266 usually does not have the CA cert loaded.
-        sendCommand("AT+CIPSSLCCONF=0", "OK", 2000)
-
-        // Set SNI for Cloudflare / workers.dev HTTPS.
-        // Important for HTTPS backend such as *.workers.dev.
-        sendCommand("AT+CIPSSLCSNI=\"" + VELOZZ_API_URL + "\"", "OK", 2000)
-
-        // SSL handshake can be slow, so use longer timeout.
-        return sendCommand("AT+CIPSTART=\"SSL\",\"" + VELOZZ_API_URL + "\",443", "OK", 30000)
+    //% subcategory="Velozz"
+    //% weight=33
+    //% blockGap=8
+    //% blockId=esp8266_velozz_debug
+    //% block="Velozz debug"
+    export function getVelozzDebug(): string {
+        return velozzDebug
     }
 
 
 
     /**
-     * Pull data from Velozz and return the response body as string.
+     * Test whether ESP8266 can open SSL connection to Velozz backend.
+     * This only checks connection to backend host, not API key.
+     */
+    //% subcategory="Velozz"
+    //% weight=32
+    //% blockGap=8
+    //% blockId=esp8266_test_velozz_connection
+    //% block="test Velozz backend connection"
+    export function testVelozzConnection(): boolean {
+        velozzUpdated = false
+        velozzDebug = "START_CONNECTION_TEST"
+
+        // Make sure the WiFi is connected.
+        if (isWifiConnected() == false) {
+            velozzDebug = "ERR_WIFI_NOT_CONNECTED"
+            return false
+        }
+
+        // Same style as Cytron Telegram.
+        if (sendCommand("AT+CIPSTART=\"SSL\",\"" + VELOZZ_API_URL + "\",443", "OK", 10000) == false) {
+            velozzDebug = "ERR_SSL_CONNECT_FAILED"
+            return false
+        }
+
+        sendCommand("AT+CIPCLOSE", "OK", 1000)
+
+        velozzUpdated = true
+        velozzDebug = "OK_SSL_CONNECTED"
+        return true
+    }
+
+
+
+    /**
+     * Test whether Velozz backend route can respond using API key.
+     * This calls /v1/microbit/heartbeat.
      * @param apiKey Device ID / API key.
      */
     //% subcategory="Velozz"
-    //% weight=29
+    //% weight=31
+    //% blockGap=8
+    //% blockId=esp8266_test_velozz_backend
+    //% block="test Velozz backend: API Key %apiKey"
+    export function testVelozzBackend(apiKey: string): boolean {
+        velozzUpdated = false
+        velozzDebug = "START_BACKEND_TEST"
+
+        // Make sure the WiFi is connected.
+        if (isWifiConnected() == false) {
+            velozzDebug = "ERR_WIFI_NOT_CONNECTED"
+            return false
+        }
+
+        // Same style as Cytron Telegram.
+        if (sendCommand("AT+CIPSTART=\"SSL\",\"" + VELOZZ_API_URL + "\",443", "OK", 10000) == false) {
+            velozzDebug = "ERR_SSL_CONNECT_FAILED"
+            return false
+        }
+
+        let data = "GET /v1/microbit/heartbeat?deviceId=" + formatUrl(apiKey) + " HTTP/1.1\r\n"
+        data += "Host: " + VELOZZ_API_URL + "\r\n"
+        data += "Connection: close\r\n"
+
+        // Same style as Cytron Telegram.
+        // Do not wait for ">".
+        sendCommand("AT+CIPSEND=" + (data.length + 2))
+        sendCommand(data)
+
+        // Check whether request was sent.
+        if (getResponse("SEND OK", 5000) == "") {
+            sendCommand("AT+CIPCLOSE", "OK", 1000)
+            velozzDebug = "ERR_NO_SEND_OK"
+            return false
+        }
+
+        // New Telegram-style backend response:
+        // {"ok":true,...}
+        let response = getResponse("\"ok\":true", 5000)
+
+        if (response != "") {
+            sendCommand("AT+CIPCLOSE", "OK", 1000)
+
+            velozzUpdated = true
+            velozzDebug = "OK_BACKEND_RESPONSE"
+            return true
+        }
+
+        // Fallback for old backend response:
+        // OK|LEFT=...
+        response = getResponse("OK|LEFT", 2000)
+
+        if (response != "") {
+            sendCommand("AT+CIPCLOSE", "OK", 1000)
+
+            velozzUpdated = true
+            velozzDebug = "OK_BACKEND_OLD_FORMAT"
+            return true
+        }
+
+        sendCommand("AT+CIPCLOSE", "OK", 1000)
+
+        velozzDebug = "ERR_NO_BACKEND_RESPONSE"
+        return false
+    }
+
+
+
+    /**
+     * Pull data from Velozz and return the response body/string.
+     * @param apiKey Device ID / API key.
+     */
+    //% subcategory="Velozz"
+    //% weight=30
     //% blockGap=8
     //% blockId=esp8266_pull_velozz
     //% block="pull Velozz: API Key %apiKey"
     export function pullVelozz(apiKey: string): string {
         let value = ""
 
-        // Reset the request successful flag.
         velozzUpdated = false
+        velozzDebug = "START_PULL"
 
         // Make sure the WiFi is connected.
-        if (isWifiConnected() == false) return value
+        if (isWifiConnected() == false) {
+            velozzDebug = "ERR_WIFI_NOT_CONNECTED"
+            return value
+        }
 
-        // Connect to Velozz. Return if failed.
-        if (connectVelozz() == false) return value
+        // Same style as Cytron Telegram.
+        if (sendCommand("AT+CIPSTART=\"SSL\",\"" + VELOZZ_API_URL + "\",443", "OK", 10000) == false) {
+            velozzDebug = "ERR_SSL_CONNECT_FAILED"
+            return value
+        }
 
-        // Construct HTTP GET request.
-        // IMPORTANT:
-        // sendCommand(data) will add the final \r\n.
-        // Therefore AT+CIPSEND uses data.length + 2.
-        let data = "GET /v1/microbit/pull?deviceId=" + apiKey + " HTTP/1.1\r\n"
+        let data = "GET /v1/microbit/pull?deviceId=" + formatUrl(apiKey) + " HTTP/1.1\r\n"
         data += "Host: " + VELOZZ_API_URL + "\r\n"
         data += "Connection: close\r\n"
 
-        // Send HTTP request.
-        sendCommand("AT+CIPSEND=" + (data.length + 2), "OK", 5000)
-        console.log("> " + data.slice(0, data.indexOf("\r\n")))
+        // Same style as Cytron Telegram.
+        // Do not wait for ">".
+        sendCommand("AT+CIPSEND=" + (data.length + 2))
         sendCommand(data)
 
         // Return if "SEND OK" is not received.
         if (getResponse("SEND OK", 5000) == "") {
             sendCommand("AT+CIPCLOSE", "OK", 1000)
+            velozzDebug = "ERR_NO_SEND_OK"
             return value
         }
 
-        // Read HTTP status.
-        let status = getResponse("HTTP/", 8000)
+        // New Telegram-style response:
+        // {"ok":true,...}
+        let response = getResponse("\"ok\":true", 5000)
 
-        // Make sure Velozz response is 200.
-        if (status.includes("200")) {
+        if (response != "") {
+            sendCommand("AT+CIPCLOSE", "OK", 1000)
 
-            // Get the response body.
-            // It should be the last non-empty line in the response.
-            while (true) {
-                let response = getResponse("", 300)
-
-                if (response == "") {
-                    break
-                } else {
-                    value = response
-                }
-            }
-
-            // Set the request successful flag.
             velozzUpdated = true
+            velozzDebug = "OK_PULL_JSON"
+            return response
         }
 
-        // Close the connection.
+        // Fallback for old backend response:
+        // NONE|POLL=...
+        response = getResponse("NONE|", 2000)
+
+        if (response != "") {
+            sendCommand("AT+CIPCLOSE", "OK", 1000)
+
+            velozzUpdated = true
+            velozzDebug = "OK_PULL_NONE_OLD_FORMAT"
+            return response
+        }
+
+        // Fallback for old backend command response:
+        // CMD|cmdId=...
+        response = getResponse("CMD|", 2000)
+
+        if (response != "") {
+            sendCommand("AT+CIPCLOSE", "OK", 1000)
+
+            velozzUpdated = true
+            velozzDebug = "OK_PULL_CMD_OLD_FORMAT"
+            return response
+        }
+
         sendCommand("AT+CIPCLOSE", "OK", 1000)
 
+        velozzDebug = "ERR_NO_PULL_RESPONSE"
         return value
     }
 
@@ -119,51 +249,148 @@ namespace esp8266 {
      * @param value Value to send.
      */
     //% subcategory="Velozz"
-    //% weight=28
+    //% weight=29
     //% blockGap=8
     //% blockId=esp8266_send_velozz
     //% block="send to Velozz: API Key %apiKey Name %name Value %value"
     export function sendVelozz(apiKey: string, name: string, value: string) {
-
-        // Reset the request successful flag.
         velozzUpdated = false
+        velozzDebug = "START_SEND"
 
         // Make sure the WiFi is connected.
-        if (isWifiConnected() == false) return
+        if (isWifiConnected() == false) {
+            velozzDebug = "ERR_WIFI_NOT_CONNECTED"
+            return
+        }
 
-        // Connect to Velozz. Return if failed.
-        if (connectVelozz() == false) return
+        // Same style as Cytron Telegram.
+        if (sendCommand("AT+CIPSTART=\"SSL\",\"" + VELOZZ_API_URL + "\",443", "OK", 10000) == false) {
+            velozzDebug = "ERR_SSL_CONNECT_FAILED"
+            return
+        }
 
-        // Construct HTTP GET request.
-        // IMPORTANT:
-        // sendCommand(data) will add the final \r\n.
-        // Therefore AT+CIPSEND uses data.length + 2.
-        let data = "GET /v1/microbit/send?deviceId=" + apiKey + "&name=" + formatUrl(name) + "&value=" + formatUrl(value) + " HTTP/1.1\r\n"
+        let data = "GET /v1/microbit/send?deviceId=" + formatUrl(apiKey)
+        data += "&name=" + formatUrl(name)
+        data += "&value=" + formatUrl(value)
+        data += " HTTP/1.1\r\n"
         data += "Host: " + VELOZZ_API_URL + "\r\n"
         data += "Connection: close\r\n"
 
-        // Send HTTP request.
-        sendCommand("AT+CIPSEND=" + (data.length + 2), "OK", 5000)
-        console.log("> " + data.slice(0, data.indexOf("\r\n")))
+        // Same style as Cytron Telegram.
+        // Do not wait for ">".
+        sendCommand("AT+CIPSEND=" + (data.length + 2))
         sendCommand(data)
 
         // Return if "SEND OK" is not received.
         if (getResponse("SEND OK", 5000) == "") {
             sendCommand("AT+CIPCLOSE", "OK", 1000)
+            velozzDebug = "ERR_NO_SEND_OK"
             return
         }
 
-        // Read HTTP status.
-        let status = getResponse("HTTP/", 8000)
+        // New Telegram-style response:
+        // {"ok":true,...}
+        let response = getResponse("\"ok\":true", 5000)
 
-        // Validate the response from Velozz.
-        if (status.includes("200")) {
+        if (response != "") {
+            sendCommand("AT+CIPCLOSE", "OK", 1000)
+
             velozzUpdated = true
+            velozzDebug = "OK_SEND_JSON"
+            return
         }
 
-        // Close the connection.
+        // Fallback for old backend response:
+        // OK|LEFT=...
+        response = getResponse("OK|LEFT", 2000)
+
+        if (response != "") {
+            sendCommand("AT+CIPCLOSE", "OK", 1000)
+
+            velozzUpdated = true
+            velozzDebug = "OK_SEND_OLD_FORMAT"
+            return
+        }
+
         sendCommand("AT+CIPCLOSE", "OK", 1000)
 
+        velozzDebug = "ERR_NO_SEND_RESPONSE"
+        return
+    }
+
+
+
+    /**
+     * Send ACK to Velozz after command is completed.
+     * @param apiKey Device ID / API key.
+     * @param cmdId Command ID from pull response.
+     */
+    //% subcategory="Velozz"
+    //% weight=28
+    //% blockGap=8
+    //% blockId=esp8266_ack_velozz
+    //% block="ack Velozz: API Key %apiKey Command ID %cmdId"
+    export function ackVelozz(apiKey: string, cmdId: string) {
+        velozzUpdated = false
+        velozzDebug = "START_ACK"
+
+        // Make sure the WiFi is connected.
+        if (isWifiConnected() == false) {
+            velozzDebug = "ERR_WIFI_NOT_CONNECTED"
+            return
+        }
+
+        // Same style as Cytron Telegram.
+        if (sendCommand("AT+CIPSTART=\"SSL\",\"" + VELOZZ_API_URL + "\",443", "OK", 10000) == false) {
+            velozzDebug = "ERR_SSL_CONNECT_FAILED"
+            return
+        }
+
+        let data = "GET /v1/microbit/ack?deviceId=" + formatUrl(apiKey)
+        data += "&cmdId=" + formatUrl(cmdId)
+        data += " HTTP/1.1\r\n"
+        data += "Host: " + VELOZZ_API_URL + "\r\n"
+        data += "Connection: close\r\n"
+
+        // Same style as Cytron Telegram.
+        // Do not wait for ">".
+        sendCommand("AT+CIPSEND=" + (data.length + 2))
+        sendCommand(data)
+
+        // Return if "SEND OK" is not received.
+        if (getResponse("SEND OK", 5000) == "") {
+            sendCommand("AT+CIPCLOSE", "OK", 1000)
+            velozzDebug = "ERR_NO_SEND_OK"
+            return
+        }
+
+        // New Telegram-style response:
+        // {"ok":true,...}
+        let response = getResponse("\"ok\":true", 5000)
+
+        if (response != "") {
+            sendCommand("AT+CIPCLOSE", "OK", 1000)
+
+            velozzUpdated = true
+            velozzDebug = "OK_ACK_JSON"
+            return
+        }
+
+        // Fallback for old backend response:
+        // OK|LEFT=...
+        response = getResponse("OK|LEFT", 2000)
+
+        if (response != "") {
+            sendCommand("AT+CIPCLOSE", "OK", 1000)
+
+            velozzUpdated = true
+            velozzDebug = "OK_ACK_OLD_FORMAT"
+            return
+        }
+
+        sendCommand("AT+CIPCLOSE", "OK", 1000)
+
+        velozzDebug = "ERR_NO_ACK_RESPONSE"
         return
     }
 }
